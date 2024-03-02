@@ -10,6 +10,10 @@ on:
         description: 'Git tag'
         required: true
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
