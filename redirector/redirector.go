@@ -11,8 +11,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 )
+
+var (
+	// Define a Prometheus counter to track requests to the forward handler.
+	forwardCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "redirector_forward_requests_total",
+			Help: "Total number of requests to the forward handler.",
+		},
+		[]string{"path"},
+	)
+)
+
+func init() {
+	// Register Prometheus metrics.
+	prometheus.MustRegister(forwardCounter)
+}
 
 type Redirector struct {
 	Routes         sync.Map
@@ -105,6 +122,7 @@ func (f *Redirector) HandleForward(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	forwardCounter.With(prometheus.Labels{"path": r.URL.Path}).Inc()
 
 	// might be interesting for analytics
 	json.NewEncoder(os.Stdout).Encode(map[string]string{

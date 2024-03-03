@@ -8,6 +8,7 @@ import (
 	"trde/redirector"
 	"trde/store"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 )
 
@@ -80,6 +81,7 @@ func main() {
 			mux.HandleFunc("GET /routes.json", redirector.HandleGetRoutes)
 			mux.HandleFunc("POST /routes.json", redirector.HandleReloadRoutes)
 			mux.HandleFunc("PUT /routes.json", redirector.HandlePutRoute)
+			mux.Handle("GET /metrics", promhttp.Handler())
 
 			return http.ListenAndServe(listenAddress, mux)
 		},
