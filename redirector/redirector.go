@@ -68,17 +68,8 @@ func (f *Redirector) ReloadRoutes() error {
 const responseBody = `
 <!DOCTYPE html>
 <html>
-  <head>
-		<script async src="https://www.googletagmanager.com/gtag/js?id=G-G205NCWYZC"></script>
-		<script>
-		window.dataLayer = window.dataLayer || [];
-		function gtag(){dataLayer.push(arguments);}
-		gtag('js', new Date());
-
-		gtag('config', 'G-G205NCWYZC');
-		</script>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	%s
+    <head>
+		%s
 	</head>
 	<body>
 	<noscript>
@@ -92,12 +83,12 @@ const responseBody = `
 `
 
 func generateHTML(targetURL string) []byte {
-	og, err := getOpenGraphTagsHTML(targetURL)
+	head, err := FetchHeadElements(targetURL)
 	if err != nil {
 		log.Println("error getting Open Graph tags:", err)
 	}
 
-	return []byte(fmt.Sprintf(responseBody, og, targetURL, targetURL, targetURL))
+	return []byte(MinifyHTML(fmt.Sprintf(responseBody, head, targetURL, targetURL, targetURL)))
 }
 
 func (f *Redirector) HandleForward(w http.ResponseWriter, r *http.Request) {
