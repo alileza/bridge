@@ -4,6 +4,7 @@ go 1.22.0
 
 require (
 	github.com/urfave/cli/v2 v2.27.1
+	golang.org/x/net v0.21.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

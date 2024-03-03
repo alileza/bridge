@@ -2,6 +2,7 @@ package redirector
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -64,6 +65,41 @@ func (f *Redirector) ReloadRoutes() error {
 	return nil
 }
 
+const responseBody = `
+<!DOCTYPE html>
+<html>
+  <head>
+		<script async src="https://www.googletagmanager.com/gtag/js?id=G-G205NCWYZC"></script>
+		<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-G205NCWYZC');
+		</script>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	%s
+	</head>
+	<body>
+	<noscript>
+		<a href="%s">Click here to continue to: %s</a>
+	</noscript>
+	<script>
+		window.location.replace("%s");
+	</script>
+	</body>
+</html>
+`
+
+func generateHTML(targetURL string) []byte {
+	og, err := getOpenGraphTagsHTML(targetURL)
+	if err != nil {
+		log.Println("error getting Open Graph tags:", err)
+	}
+
+	return []byte(fmt.Sprintf(responseBody, targetURL, og, targetURL, targetURL))
+}
+
 func (f *Redirector) HandleForward(w http.ResponseWriter, r *http.Request) {
 	target, ok := f.GetRoute(r.URL.Path)
 	if !ok {
@@ -90,14 +126,7 @@ func (f *Redirector) HandleForward(w http.ResponseWriter, r *http.Request) {
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
 	})
 
-	http.Redirect(w, r, target, http.StatusTemporaryRedirect)
-}
-
-func trimearlyslash(s string) string {
-	if len(s) > 0 && s[0] == '/' {
-		return s[1:]
-	}
-	return s
+	w.Write(generateHTML(target))
 }
 
 func (f *Redirector) HandleGetRoutes(w http.ResponseWriter, r *http.Request) {
@@ -180,4 +209,11 @@ func (rdr *Redirector) StaticFileHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	http.FileServer(http.Dir(rdr.StaticFilepath)).ServeHTTP(w, r)
+}
+
+func trimearlyslash(s string) string {
+	if len(s) > 0 && s[0] == '/' {
+		return s[1:]
+	}
+	return s
 }
