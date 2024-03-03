@@ -97,7 +97,7 @@ func generateHTML(targetURL string) []byte {
 		log.Println("error getting Open Graph tags:", err)
 	}
 
-	return []byte(fmt.Sprintf(responseBody, targetURL, og, targetURL, targetURL))
+	return []byte(fmt.Sprintf(responseBody, og, targetURL, targetURL, targetURL))
 }
 
 func (f *Redirector) HandleForward(w http.ResponseWriter, r *http.Request) {

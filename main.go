@@ -43,12 +43,20 @@ func main() {
 				Usage:   "enable proxy mode",
 				EnvVars: []string{"PROXY_ENABLED"},
 			},
+			&cli.StringFlag{
+				Name:    "proxy-url",
+				Aliases: []string{"u", "url"},
+				Value:   "http://localhost:5173",
+				Usage:   "proxy URL",
+				EnvVars: []string{"PROXY_URL"},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			listenAddress := c.String("listen-address")
 			routesPath := c.String("routes-path")
 			staticPath := c.String("static-path")
 			proxyEnabled := c.Bool("proxy-enabled")
+			proxyURL := c.String("proxy-url")
 
 			storage := store.LocalStore{
 				Filepath: routesPath,
@@ -59,6 +67,7 @@ func main() {
 				Store:          &storage,
 				StaticFilepath: staticPath,
 				ProxyEnabled:   proxyEnabled,
+				ProxyURL:       proxyURL,
 			}
 
 			err := redirector.ReloadRoutes()
