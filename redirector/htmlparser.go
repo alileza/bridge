@@ -21,14 +21,15 @@ func FetchHeadElements(targetURL string) (string, error) {
 		return html.Parse(resp.Body)
 	}
 
-	// Recursive function to find all elements within <head> excluding scripts and stylesheets
+	// Recursive function to find all elements within <head> excluding scripts, stylesheets, and style tags
 	findHeadElements := func(n *html.Node) []*html.Node {
 		var headElements []*html.Node
 		var traverse func(*html.Node)
 		traverse = func(n *html.Node) {
 			if n.Type == html.ElementNode && n.Data == "head" {
 				for child := n.FirstChild; child != nil; child = child.NextSibling {
-					if child.Data != "script" && child.Data != "link" {
+					// Exclude script, link, and style tags
+					if child.Data != "script" && child.Data != "link" && child.Data != "style" {
 						headElements = append(headElements, child)
 					}
 				}
