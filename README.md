@@ -25,6 +25,6 @@ Contributions to Bridge are welcome! Whether it's bug fixes, feature enhancement
 
 ## Feedback and Support 📧
 
-For any questions, feedback, or support inquiries, please don't hesitate to reach out through GitHub Issues or contact us directly at [Bridge@alileza.me](mailto:Bridge@alileza.me).
+For any questions, feedback, or support inquiries, please don't hesitate to reach out through GitHub Issues or contact us directly at [bridge@alileza.me](mailto:Bridge@alileza.me).
 
 Start shortening your URLs effortlessly with Bridge today!
