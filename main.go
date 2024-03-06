@@ -4,12 +4,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"trde/redirector"
 	"trde/store"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/time/rate"
 )
 
 func main() {
@@ -69,6 +71,9 @@ func main() {
 				StaticFilepath: staticPath,
 				ProxyEnabled:   proxyEnabled,
 				ProxyURL:       proxyURL,
+
+				ReloadLimiter: rate.NewLimiter(rate.Every(20*time.Second), 1),
+				UpdateLimiter: rate.NewLimiter(rate.Every(1*time.Second), 1),
 			}
 
 			err := redirector.ReloadRoutes()

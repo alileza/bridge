@@ -2,6 +2,7 @@ package redirector
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v2"
 )
 
@@ -38,6 +40,32 @@ type Redirector struct {
 	ProxyEnabled   bool
 	ProxyURL       string
 	Store          Store
+
+	ReloadLimiter *rate.Limiter
+	LastReload    time.Time
+
+	UpdateLimiter *rate.Limiter
+	LastUpdate    time.Time
+}
+
+func (f *Redirector) ReloadRoutes() error {
+	blob, err := f.Store.ReadFile()
+	if err != nil {
+		return err
+	}
+
+	var routes map[string]string
+	if err := yaml.Unmarshal(blob, &routes); err != nil {
+		return err
+	}
+
+	f.Routes = sync.Map{}
+
+	for path, target := range routes {
+		f.AddRoute(path, target)
+	}
+
+	return nil
 }
 
 type Store interface {
@@ -60,26 +88,6 @@ func (f *Redirector) GetRoute(path string) (string, bool) {
 		return "", false
 	}
 	return target.(string), true
-}
-
-func (f *Redirector) ReloadRoutes() error {
-	blob, err := f.Store.ReadFile()
-	if err != nil {
-		return err
-	}
-
-	var routes map[string]string
-	if err := yaml.Unmarshal(blob, &routes); err != nil {
-		return err
-	}
-
-	f.Routes = sync.Map{}
-
-	for path, target := range routes {
-		f.AddRoute(path, target)
-	}
-
-	return nil
 }
 
 const responseBody = `
@@ -149,12 +157,36 @@ func (f *Redirector) HandleGetRoutes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Redirector) HandleReloadRoutes(w http.ResponseWriter, r *http.Request) {
+	if !f.ReloadLimiter.Allow() {
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	f.LastReload = time.Now()
+
 	f.ReloadRoutes()
 
 	w.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Redirector) HandlePutRoute(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 50*1024)
+
+	if err := r.ParseForm(); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if !f.UpdateLimiter.Allow() {
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	f.LastUpdate = time.Now()
+
 	var Route struct {
 		Path   string   `json:"path"`
 		Target string   `json:"target"`
