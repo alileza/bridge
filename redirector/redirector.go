@@ -170,7 +170,7 @@ func (f *Redirector) HandleReloadRoutes(w http.ResponseWriter, r *http.Request) 
 
 func (f *Redirector) HandlePutRoute(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 50*1024)
-
+	reader := &io.LimitedR
 	if err := r.ParseForm(); err != nil {
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
