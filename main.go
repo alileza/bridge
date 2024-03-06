@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"trde/redirector"
-	"trde/store"
+	"bridge/redirector"
+	"bridge/store"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
@@ -49,7 +49,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "proxy-url",
 				Aliases: []string{"u", "url"},
-				Value:   "http://localhost:5173",
+				Value:   "http://localhost:5174",
 				Usage:   "proxy URL",
 				EnvVars: []string{"PROXY_URL"},
 			},

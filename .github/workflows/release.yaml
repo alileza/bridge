@@ -35,4 +35,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/alileza/trde.link:${{ inputs.git_tag }}
+          tags: ghcr.io/alileza/bridge:${{ inputs.git_tag }}

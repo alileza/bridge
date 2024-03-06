@@ -2,7 +2,6 @@ package redirector
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -169,52 +168,56 @@ func (f *Redirector) HandleReloadRoutes(w http.ResponseWriter, r *http.Request) 
 }
 
 func (f *Redirector) HandlePutRoute(w http.ResponseWriter, r *http.Request) {
+	// limit the size of the request body
 	r.Body = http.MaxBytesReader(w, r.Body, 50*1024)
-	reader := &io.LimitedR
-	if err := r.ParseForm(); err != nil {
-		var maxBytesError *http.MaxBytesError
-		if errors.As(err, &maxBytesError) {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
+	if r.ContentLength > 50*1024 {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
 	}
 
+	// limit the number of requests per second
 	if !f.UpdateLimiter.Allow() {
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
 	}
 	f.LastUpdate = time.Now()
 
+	// decode the request body
 	var Route struct {
-		Path   string   `json:"path"`
-		Target string   `json:"target"`
-		Tags   []string `json:"tags"` // not used
+		Path   string `json:"path"`
+		Target string `json:"target"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&Route); err != nil {
-		log.Println("error decoding route:", err)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error":   err,
+			"message": `invalid request body, expecting something like: {"path": "me", "target":"https://alileza.me"},`,
+		})
+		log.Println("[400]", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	// add the route to the in-memory map
 	f.AddRoute(trimearlyslash(Route.Path), Route.Target)
 
+	// transform sync.Map to map[string]string so it can be marshalled to yaml
 	routes := make(map[string]string)
 	f.Routes.Range(func(key, value interface{}) bool {
 		routes[key.(string)] = value.(string)
 		return true
 	})
 
+	// marshal the routes to yaml bytes
 	b, err := yaml.Marshal(routes)
 	if err != nil {
-		log.Println("error marshalling routes:", err)
+		log.Println("[500]", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	// write the routes to the file
 	if err := f.Store.WriteFile(b); err != nil {
-		log.Println("error writing routes file:", err)
+		log.Println("[500] i/o", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

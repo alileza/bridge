@@ -2,7 +2,7 @@ FROM golang:1.22-alpine as gobuild
 
 COPY . /app
 WORKDIR /app
-RUN go build -o /app/trde
+RUN go build -o /app/bridge
 
 # frontend build
 FROM node:21-alpine as reactbuild
@@ -20,7 +20,7 @@ FROM alpine:3.17.3
 
 WORKDIR /app
 
-COPY --from=gobuild /app/trde /bin/trde
+COPY --from=gobuild /app/bridge /bin/bridge
 COPY --from=reactbuild /app/dist /app/portal/dist
 
-ENTRYPOINT [ "trde" ]
+ENTRYPOINT [ "bridge" ]

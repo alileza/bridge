@@ -1,4 +1,4 @@
-module trde
+module bridge
 
 go 1.22.0
 
