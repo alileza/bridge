@@ -1,8 +1,8 @@
-# Bridge 🌐
+# Bridge 
 
 Bridge is a lightweight URL shortener server designed for simplicity, ease of operation, and minimal operational costs. With its minimalist design and efficient architecture, Bridge offers a straightforward solution for shortening URLs without the overhead of complex systems.
 
-## Key Features 🔑
+## Key Features 
 
 - **Minimalist Design:** Bridge is built with simplicity in mind, offering essential features without unnecessary bloat.
   
@@ -10,7 +10,7 @@ Bridge is a lightweight URL shortener server designed for simplicity, ease of op
   
 - **Cost-Effective Storage Options:** Bridge supports both local storage and remote storage using Amazon S3, allowing users to choose the storage solution that best fits their needs and budget.
 
-## Getting Started 🚀
+## Getting Started 
 
 To deploy Bridge and start shortening URLs, follow these simple steps:
 
@@ -19,7 +19,7 @@ To deploy Bridge and start shortening URLs, follow these simple steps:
 3. Deploy Bridge to your preferred hosting environment.
 4. Start shortening URLs with ease!
 
-## Contributing 🤝
+## Contributing 
 
 Contributions to Bridge are welcome! Whether it's bug fixes, feature enhancements, or documentation improvements, feel free to submit pull requests or open issues on the GitHub repository.
 
