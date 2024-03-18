@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -56,6 +57,8 @@ func (og *OpenGraph) FetchMetaTags(ctx context.Context, targetURL string) ([]str
 }
 
 func FetchMetaTags(ctx context.Context, targetURL string) ([]string, error) {
-	og := OpenGraph{Client: http.DefaultClient}
+	og := OpenGraph{Client: &http.Client{
+		Timeout: 2 * time.Second,
+	}}
 	return og.FetchMetaTags(ctx, targetURL)
 }

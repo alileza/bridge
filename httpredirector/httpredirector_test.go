@@ -1,4 +1,4 @@
-package httpforwarder
+package httpredirector
 
 import (
 	"net/url"
