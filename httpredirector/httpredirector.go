@@ -22,6 +22,10 @@ var (
 	)
 )
 
+func init() {
+	prometheus.MustRegister(forwardCounter)
+}
+
 const DefaultRedirectURL = "https://alileza.me/"
 
 // HTTPRedirector is a struct that holds the routes and their destinations
