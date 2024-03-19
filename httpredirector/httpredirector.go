@@ -8,6 +8,8 @@ import (
 	"bridge/opengraph"
 )
 
+const DefaultRedirectURL = "https://alileza.me/"
+
 // HTTPRedirector is a struct that holds the routes and their destinations
 type HTTPRedirector struct {
 	EnableOpengraph bool
@@ -15,8 +17,9 @@ type HTTPRedirector struct {
 }
 
 type Route struct {
-	Key string `json:"key"`
-	URL string `json:"url"`
+	Preview string `json:"preview"`
+	Key     string `json:"key"`
+	URL     string `json:"url"`
 }
 
 type Storage interface {
@@ -37,8 +40,9 @@ func (rdr *HTTPRedirector) ListRoutes() []Route {
 	var routes []Route
 	rdr.Storage.Range(func(k, v interface{}) bool {
 		routes = append(routes, Route{
-			Key: k.(string),
-			URL: v.(string),
+			Preview: v.(string),
+			Key:     k.(string),
+			URL:     v.(string),
 		})
 		return true
 	})
@@ -51,6 +55,7 @@ func (rdr *HTTPRedirector) SetRoute(key string, destURL string) error {
 	if err != nil {
 		return fmt.Errorf("invalid destination URL: %w", err)
 	}
+
 	rdr.Storage.Store(key, destURL)
 	return nil
 }
@@ -78,7 +83,7 @@ func (rdr *HTTPRedirector) GetRedirectURL(key *url.URL) string {
 		return dest.(string)
 	}
 
-	return "https://alileza.me/"
+	return DefaultRedirectURL
 }
 
 func (rdr *HTTPRedirector) Handler(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ go 1.22.0
 
 require (
 	github.com/aws/aws-sdk-go v1.50.32
+	github.com/boombuler/barcode v1.0.1
 	github.com/urfave/cli/v2 v2.27.1
 	golang.org/x/net v0.21.0
 )

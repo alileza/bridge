@@ -7,83 +7,36 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
+import Tooltip from '@mui/material/Tooltip';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
+import Link from '@mui/material/Link';
 
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Close';
+import FileCopyIcon from '@mui/icons-material/FileCopy';
+import IconButton from '@mui/material/IconButton';
+import { CopyToClipboard } from 'react-copy-to-clipboard';
 
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import Avatar from '@mui/material/Avatar';
+import ImageIcon from '@mui/icons-material/Image';
+import WorkIcon from '@mui/icons-material/Work';
+import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+
+import { Routes, Route } from './types';
 import './App.css';
-
-interface Route {
-  key: string;
-  url: string;
-}
-
-type Routes = Route[];
-
-function validateRoute(route: Route | null): string | null {
-  if (!route) {
-    return 'Route is required';
-  }
-
-  if (!route.key || !route.key.includes('/')) {
-    return 'Key is required and must include a "/"';
-  }
-  if (!route.url) {
-    return 'URL is required';
-  }
-  // Validate URL pattern here
-  const urlPatternRegex = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i;
-  if (!urlPatternRegex.test(route.url)) {
-    return 'Invalid URL format';
-  }
-
-  return null;
-}
-
-type EditableRowProps = {
-  data: Route;
-
-  handleSaveAddNewRoute: () => void;
-  handleCancelAddNewRoute: () => void;
-}
-
-function EditableRow({ handleSaveAddNewRoute, handleCancelAddNewRoute, data }: EditableRowProps): JSX.Element {
-  const [route, setRoute] = useState<Route>(data);
-
-  const handlePathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRoute({ ...route, key: e.target.value });
-  }
-
-  const handleURLChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRoute({ ...route, url: e.target.value });
-  }
-
-  return (
-    <TableRow>
-      <TableCell component="th" scope="row">
-        <TextField fullWidth label="Key" onChange={handlePathChange} value={route.key} placeholder="Key path such as (/hello, or private.tr/hello (if you have custom domain))" variant="outlined" />
-      </TableCell>
-      <TableCell align="left">
-        <TextField fullWidth label="Target URL" onChange={handleURLChange} value={route.url} placeholder="Target URL like (https://google.com)" variant="outlined" />
-      </TableCell>
-      <TableCell align="left">
-        <Button color="success">
-          <SaveIcon onClick={handleSaveAddNewRoute} />
-        </Button>
-        <Button color="error">
-          <CancelIcon onClick={handleCancelAddNewRoute} />
-        </Button>
-      </TableCell>
-    </TableRow>
-  );
-}
+import { Typography } from '@mui/material';
+import ImageMagic from './ImageMagic';
 
 function App(): JSX.Element {
+  const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
@@ -137,65 +90,44 @@ function App(): JSX.Element {
 
   const handleDeleteRoute = () => { }
 
+  const handleCopy = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const hostname = window.location.hostname;
   return (
     <>
-      <TableContainer component={Paper}>
-        <Table sx={{ minWidth: 650 }} aria-label="simple table">
-          <TableHead>
-            <TableRow>
-              <TableCell colSpan={4}>
-                <Button color="primary" startIcon={<AddIcon />} onClick={handleAddNewRoute}>
-                  Add a new route
-                </Button>
-                {error && <div>{error}</div>}
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell>Key</TableCell>
-              <TableCell align="left">URL</TableCell>
-              <TableCell align="left">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            <EditableRow 
-                  data={{} as Route }
-                  handleSaveAddNewRoute={handleSaveAddNewRoute} 
-                  handleCancelAddNewRoute={handleCancelAddNewRoute} />
-
-            {routes.map((route: Route) => {
-              if (route.key === editableRoute.key) {
-                return <EditableRow 
-                      key={route.key}
-                      data={route}
-                      handleSaveAddNewRoute={handleSaveAddNewRoute} 
-                      handleCancelAddNewRoute={() => { setEditableRoute({} as Route) }} 
-                    />;
-              }
-
-              return (
-                <TableRow
-                  key={route.key}
-                >
-                  <TableCell component="th" scope="row">
-                    {route.key}
-                  </TableCell>
-                  <TableCell align="left">{route.url}</TableCell>
-                  <TableCell align="left">
-                    <Button color="info" onClick={handleEditRoute(route)}>
-                      <EditIcon />
-                    </Button>
-                    {/* <Button color="error" onClick={handleDeleteRoute}>
-                      <DeleteIcon />
-                    </Button> */}
-                  </TableCell>
-                </TableRow>);
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <Typography variant="h1" component="h1" gutterBottom>
+        bridge
+      </Typography>
+      <List sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: '16px',
+      }}>
+        {routes.map((route: Route) => {
+          const truncatedUrl = route.url.length > 23 ? route.url.substring(0, 23) + '...' : route.url;
+          const clipboardText = hostname + route.key;
+          return (
+            <ListItem key={route.key}>
+              <ListItemAvatar>
+                <ImageMagic url={clipboardText} />
+              </ListItemAvatar>
+              <CopyToClipboard text={clipboardText} onCopy={handleCopy}>
+                <Tooltip placement="top" sx={{ cursor: 'pointer' }} title={copied ? `${clipboardText} is copied` : "copy to clipboard"}>
+                  <ListItemText primary={route.key} secondary={truncatedUrl} />
+                </Tooltip>
+              </CopyToClipboard>
+            </ListItem>
+          );
+        }
+        )}
+      </List>
     </>
-  );
+  )
 }
 
 
 export default App;
+
