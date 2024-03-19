@@ -9,6 +9,8 @@ import (
 
 	"bridge/httpredirector"
 	"bridge/opengraph"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -118,6 +120,8 @@ func NewServer(o *Options) *Server {
 		o.Redirector.RemoveRoute(request.Key)
 		w.WriteHeader(http.StatusOK)
 	})
+
+	apiMux.HandleFunc("GET /metrics", promhttp.Handler().ServeHTTP)
 
 	srv := &http.Server{
 		Addr:    o.ListenAddress,

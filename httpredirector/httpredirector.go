@@ -7,6 +7,19 @@ import (
 	"strings"
 
 	"bridge/opengraph"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+	// Define a Prometheus counter to track requests to the forward handler.
+	forwardCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "redirector_forward_requests_total",
+			Help: "Total number of requests to the forward handler.",
+		},
+		[]string{"path"},
+	)
 )
 
 const DefaultRedirectURL = "https://alileza.me/"
@@ -98,16 +111,19 @@ func (rdr *HTTPRedirector) Handler(w http.ResponseWriter, r *http.Request) {
 	destinationURL := rdr.GetRedirectURL(r.URL)
 
 	if !rdr.EnableOpengraph {
+		forwardCounter.With(prometheus.Labels{"path": r.URL.Path}).Inc()
 		http.Redirect(w, r, destinationURL, http.StatusFound)
 		return
 	}
 
 	headElements, err := opengraph.FetchMetaTags(r.Context(), destinationURL)
 	if err != nil {
+		forwardCounter.With(prometheus.Labels{"path": r.URL.Path}).Inc()
 		http.Redirect(w, r, destinationURL, http.StatusFound)
 		return
 	}
 
+	forwardCounter.With(prometheus.Labels{"path": r.URL.Path}).Inc()
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(fmt.Sprintf(responseBody, headElements, destinationURL, destinationURL, destinationURL)))
 }
