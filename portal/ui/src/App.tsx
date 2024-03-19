@@ -166,7 +166,12 @@ function App(): JSX.Element {
                 <ImageMagic handleSave={() => {}} imageContent={route.preview} routeKeyURL={clipboardText} />
               </ListItemAvatar>
               <CopyToClipboard text={clipboardText} onCopy={handleCopy}>
-                <Tooltip placement="top" sx={{ cursor: 'pointer' }} title={copied ? `${clipboardText} is copied` : "copy to clipboard"}>
+                <Tooltip 
+                    placement="top" 
+                    sx={{ cursor: 'pointer' }} 
+                    title={copied ? `${clipboardText} is copied` : "copy to clipboard"}
+                    enterTouchDelay={0}
+                    >
                   <ListItemText primary={route.key} secondary={truncatedUrl} />
                 </Tooltip>
               </CopyToClipboard>
