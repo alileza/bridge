@@ -97,7 +97,12 @@ function App(): JSX.Element {
           },
         }).then(res => res.json()).then((data: { image: string }) => {
           newRoute.preview =  "data:image/png;base64," +data.image;
-          setRoutes([newRoute, ...routes]);
+          
+          if (routes && routes.length > 0) {
+            setRoutes([newRoute, ...routes]);
+          }else {
+            setRoutes([newRoute]);
+          }
           setNewRoute({ preview: '', key: '', url: '' });
         })
 
@@ -110,9 +115,11 @@ function App(): JSX.Element {
   return (
     <>
       <Link href="https://github.com/alileza/bridge" sx={{ color: 'black', textDecoration: 'none' }} target="_blank">
+        <img src="/bridge.png" className="logo" width="80" style={{ marginRight: '10px', float: 'left'}}/>
         <Typography variant="h2" component="h2" gutterBottom>
           bridge
         </Typography>
+        <div style={{ clear: 'both'}}></div>
       </Link>
       {error &&
         <Alert onClick={() => setError(null)} icon={<ErrorOutlineIcon fontSize="inherit" />} severity="error">

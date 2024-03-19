@@ -2,10 +2,11 @@ package portal
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
+	"strings"
 )
 
 type UIHandler struct {
@@ -31,13 +32,27 @@ func (p *UIHandler) Handler(proxyEnabled bool) http.Handler {
 }
 
 func (p *UIHandler) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
-	filePath := p.StaticFilepath + r.URL.Path
-	if _, err := os.Stat(filePath); err != nil {
-		http.ServeFile(w, r, p.StaticFilepath+"/index.html")
+
+	if r.URL.Path == "/" {
+		r.URL.Path = "/index.html"
+	}
+	log.Println("ui/dist/" + r.URL.Path)
+	b, err := assets.ReadFile("ui/dist" + r.URL.Path)
+	if err != nil {
+		log.Println("Error reading file", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	http.FileServer(http.Dir(p.StaticFilepath)).ServeHTTP(w, r)
+	if strings.HasSuffix(r.URL.Path, ".js") {
+		w.Header().Set("Content-Type", "application/javascript")
+	}
+	if strings.HasSuffix(r.URL.Path, ".css") {
+		w.Header().Set("Content-Type", "text/css")
+	}
+	w.Write(b)
+
+	// http.FileServer(http.Dir(p.StaticFilepath)).ServeHTTP(w, r)
 }
 
 func (p *UIHandler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
