@@ -1,0 +1,26 @@
+/* src/styles/fonts.css */
+
+@font-face {
+    font-family: 'Baltore';
+    src: url('./fonts/baltore.ttf') format('truetype'),
+         url('./fonts/baltore.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Baltore Slanted';
+    src: url('./fonts/baltore-slanted.ttf') format('truetype'),
+         url('./fonts/baltore-slanted.otf') format('opentype');
+    font-weight: normal;
+    font-style: italic;
+}
+
+input {
+    border: none !important;
+    outline: none !important;
+}
+
+*:focus-visible {
+    outline: none !important;
+}
