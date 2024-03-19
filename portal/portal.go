@@ -52,7 +52,7 @@ func NewServer(o *Options) *Server {
 
 	apiMux.HandleFunc("GET /api/routes", func(w http.ResponseWriter, r *http.Request) {
 		o.Logger.Printf("200 - GET /api/routes\n")
-
+		o.Redirector.BaseURL = r.Host
 		responseOk(w, o.Redirector.ListRoutes())
 	})
 
