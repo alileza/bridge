@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"bridge/opengraph"
 )
@@ -12,6 +13,7 @@ const DefaultRedirectURL = "https://alileza.me/"
 
 // HTTPRedirector is a struct that holds the routes and their destinations
 type HTTPRedirector struct {
+	BaseURL         string
 	EnableOpengraph bool
 	Storage         Storage
 }
@@ -38,9 +40,11 @@ func (rdr *HTTPRedirector) LoadRoutes(routes map[string]string) {
 
 func (rdr *HTTPRedirector) ListRoutes() []Route {
 	var routes []Route
+
 	rdr.Storage.Range(func(k, v interface{}) bool {
+		i, _ := opengraph.GenerateBarcode(rdr.BaseURL + k.(string))
 		routes = append(routes, Route{
-			Preview: v.(string),
+			Preview: "data:image/png;base64," + opengraph.EncodeImageToBase64(i),
 			Key:     k.(string),
 			URL:     v.(string),
 		})
@@ -54,6 +58,10 @@ func (rdr *HTTPRedirector) SetRoute(key string, destURL string) error {
 	_, err := url.ParseRequestURI(destURL)
 	if err != nil {
 		return fmt.Errorf("invalid destination URL: %w", err)
+	}
+
+	if !strings.Contains(key, "/") && !strings.Contains(key, ".") {
+		key = "/" + key
 	}
 
 	rdr.Storage.Store(key, destURL)

@@ -52,6 +52,7 @@ func NewServer(o *Options) *Server {
 
 	apiMux.HandleFunc("GET /api/routes", func(w http.ResponseWriter, r *http.Request) {
 		o.Logger.Printf("200 - GET /api/routes\n")
+
 		responseOk(w, o.Redirector.ListRoutes())
 	})
 
@@ -83,8 +84,24 @@ func NewServer(o *Options) *Server {
 			return
 		}
 
+		if request.Key == "" {
+			o.Logger.Println("400 - PUT /api/routes: empty key")
+			responseError(w, fmt.Errorf("empty key"), http.StatusBadRequest)
+			return
+		}
+
+		if request.URL == "" {
+			o.Logger.Println("400 - PUT /api/routes: empty url")
+			responseError(w, fmt.Errorf("empty url"), http.StatusBadRequest)
+			return
+		}
+
 		o.Logger.Printf("202 - PUT /api/routes: %s -> %s\n", request.Key, request.URL)
-		o.Redirector.SetRoute(request.Key, request.URL)
+		if err := o.Redirector.SetRoute(request.Key, request.URL); err != nil {
+			o.Logger.Println("400 - PUT /api/routes: error setting route:", err)
+			responseError(w, err, http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusAccepted)
 	})
 

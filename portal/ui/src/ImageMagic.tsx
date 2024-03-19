@@ -1,42 +1,48 @@
-import { useState, useEffect } from 'react';
-import Paper from '@mui/material/Paper';
+import AddIcon from '@mui/icons-material/Add';
+import SaveIcon from '@mui/icons-material/Save';
 
+function ImageMagic({ imageContent, routeKeyURL, handleSave }: { imageContent: string, routeKeyURL: string, handleSave: () => void }): JSX.Element {
+    
+    if (imageContent === '') {
+        if (routeKeyURL !== '') {
+            return (
+                <div>
+                    <div style={{ cursor: 'pointer', height: '35px', width: '35px'}} onClick={handleSave}>
+                        <SaveIcon color='success' fontSize='large' />
+                    </div>
+                </div>
+            );
+        }
 
-function ImageMagic({ url }: { url: string }): JSX.Element {
-    const [imageContent, setImageContent] = useState<string>('');
-    const [showPreview, setShowPreview] = useState<boolean>(false);
-
-    useEffect(() => {
-        fetch('/api/routes/preview?url=' + url)
-            .then(res => res.json())
-            .then((data: { image: string }) => { // Update the type of 'data' parameter
-                setImageContent(data.image);
-            })
-            .catch(console.error);
-    }, [url]);
+        return (
+        <div>
+            <div style={{border: 'solid 1px', height: '35px', width: '35px'}} onClick={() => handlePreviewClick(imageContent)}>
+                <AddIcon fontSize='large' />
+            </div>
+        </div>
+        );
+    }
 
     const handlePreviewClick = (imageContent: string) => {
-        // Open a new window with the image and specified dimensions
         const newWindow = window.open('', '_blank', 'width=420,height=445');
         
-        // Write the image content to the new window
         if (newWindow) {
             newWindow.document.write(`
             <center>
-                <img src="data:image/png;base64,${imageContent}" alt="Preview" width="400" height="400"/>
-                <p>${url}</p>
+                <img src="${imageContent}" alt="Preview" width="400" height="400"/>
+                <p>${routeKeyURL}</p>
             </center>
             `);
         } else {
             console.error('Failed to open preview window. Please make sure pop-ups are allowed for this site.');
         }
     };
-
+   
 
     return (
         <div>
             <div style={{cursor: 'pointer'}} onClick={() => handlePreviewClick(imageContent)}>
-                <img src={"data:image/png;base64," + imageContent} alt="Image" width="35" />
+                <img src={imageContent} alt="Image" width="35" />
             </div>
         </div>
     );
