@@ -36,7 +36,7 @@ func (p *UIHandler) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
 		r.URL.Path = "/index.html"
 	}
-	log.Println("ui/dist/" + r.URL.Path)
+	log.Println("ui/dist" + r.URL.Path)
 	b, err := assets.ReadFile("ui/dist" + r.URL.Path)
 	if err != nil {
 		log.Println("Error reading file", err.Error())
