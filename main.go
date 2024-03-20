@@ -18,16 +18,9 @@ func main() {
 			&cli.StringFlag{
 				Name:    "listen-address",
 				Aliases: []string{"l", "listen"},
-				Value:   "0.0.0.0:8080",
-				Usage:   "address to listen on",
+				Value:   "0.0.0.0:80",
+				Usage:   "HTTP listen address, e.g. 0.0.0.0:80",
 				EnvVars: []string{"LISTEN_ADDRESS"},
-			},
-			&cli.StringFlag{
-				Name:    "ui-static-path",
-				Aliases: []string{"ui", "static"},
-				Value:   "/app/portal/dist",
-				Usage:   "path to the static files",
-				EnvVars: []string{"STATIC_PATH"},
 			},
 			&cli.StringFlag{
 				Name:    "storage-dir",
@@ -54,7 +47,6 @@ func main() {
 		},
 		Action: func(c *cli.Context) error {
 			listenAddress := c.String("listen-address")
-			staticPath := c.String("static-path")
 			proxyEnabled := c.Bool("proxy-enabled")
 			proxyURL := c.String("proxy-url")
 			storageDir := c.String("storage-dir")
@@ -65,9 +57,8 @@ func main() {
 			prtl := portal.NewServer(&portal.Options{
 				ListenAddress: listenAddress,
 
-				UIStaticFilepath: staticPath,
-				UIProxyEnabled:   proxyEnabled,
-				UIProxyURL:       proxyURL,
+				UIProxyEnabled: proxyEnabled,
+				UIProxyURL:     proxyURL,
 
 				Redirector: &httpredirector.HTTPRedirector{
 					Storage: store,

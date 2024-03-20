@@ -39,9 +39,8 @@ type Options struct {
 
 	Redirector *httpredirector.HTTPRedirector
 
-	UIStaticFilepath string
-	UIProxyEnabled   bool
-	UIProxyURL       string
+	UIProxyEnabled bool
+	UIProxyURL     string
 }
 
 func NewServer(o *Options) *Server {
@@ -51,7 +50,7 @@ func NewServer(o *Options) *Server {
 		o.Logger = log.New(os.Stdout, "portal: ", log.LstdFlags)
 	}
 
-	uiHandler := NewUIHandler(o.UIStaticFilepath, o.UIProxyURL)
+	uiHandler := NewUIHandler("", o.UIProxyURL)
 
 	apiMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		keyWithHost := r.Host + r.URL.Path
