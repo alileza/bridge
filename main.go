@@ -1,19 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/url"
 	"os"
-	"strings"
-	"sync"
 
 	"github.com/urfave/cli/v2"
 
 	"bridge/httpredirector"
 	"bridge/portal"
-	"bridge/storage/localstorage"
-	"bridge/storage/s3storage"
+	"bridge/storage"
 )
 
 func main() {
@@ -35,10 +30,10 @@ func main() {
 				EnvVars: []string{"STATIC_PATH"},
 			},
 			&cli.StringFlag{
-				Name:    "storage-path",
+				Name:    "storage-dir",
 				Aliases: []string{"s", "storage"},
-				Value:   "file://./routes.json",
-				Usage:   "storage path (file://<bucket name>/<path>, s3://<file path>), if not set, it will use in-memory storage",
+				Value:   "./bridgedata",
+				Usage:   "storage dir (default: ./bridgedata)",
 			},
 			&cli.BoolFlag{
 				Name:    "proxy-enabled",
@@ -62,33 +57,10 @@ func main() {
 			staticPath := c.String("static-path")
 			proxyEnabled := c.Bool("proxy-enabled")
 			proxyURL := c.String("proxy-url")
-			storagePath := c.String("storage-path")
+			storageDir := c.String("storage-dir")
 
-			var store httpredirector.Storage
-			if storagePath == "" {
-				store = &sync.Map{}
-			} else {
-				ss, err := url.Parse(storagePath)
-				if err != nil {
-					return fmt.Errorf("error parsing storage path: %s", err)
-				}
-				switch ss.Scheme {
-				case "file":
-					store = localstorage.NewLocalStorage(strings.ReplaceAll(storagePath, "file://", ""))
-				case "s3":
-					reg := ss.Query().Get("region")
-					if reg == "" {
-						return fmt.Errorf("region is required for S3 storage, put it on the query string: ?region=us-west-1")
-					}
-					ls, err := s3storage.NewS3Storage(ss.Host, reg)
-					if err != nil {
-						return fmt.Errorf("error creating S3 storage: %s", err)
-					}
-					store = ls
-				default:
-					return fmt.Errorf("unsupported storage scheme: %s", ss.Scheme)
-				}
-			}
+			os.MkdirAll(storageDir, 0755)
+			store := storage.NewStorage(storageDir + "/routes.json")
 
 			prtl := portal.NewServer(&portal.Options{
 				ListenAddress: listenAddress,

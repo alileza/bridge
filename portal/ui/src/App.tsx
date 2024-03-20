@@ -12,6 +12,7 @@ import { Routes, Route } from './types';
 import './App.css';
 import { Typography } from '@mui/material';
 import { TextField, Button } from '@mui/material';
+import GitHubIcon from '@mui/icons-material/GitHub';
 
 function App(): JSX.Element {
   const [copied, setCopied] = useState(false);
@@ -103,9 +104,9 @@ function App(): JSX.Element {
         <Typography variant="h2" style={{ float: 'left'}} component="h2">
           bridge
         </Typography>
+        <GitHubIcon fontSize="large" style={{ marginTop: '20px', marginLeft: '20px' }} />
       </Link>
-
-
+      
       <div style={{float: 'right'}}>
 
       <TextField
@@ -127,7 +128,7 @@ function App(): JSX.Element {
           size="small"
           value={newRoute.key}
           onChange={handleKeyChange}
-          style={{ marginTop: '20px' }}
+          style={{ marginTop: '20px', marginRight: '10px'}}
         />
 
         <TextField
@@ -138,7 +139,7 @@ function App(): JSX.Element {
           value={newRoute.url}
           onChange={handleURLChange}
           onKeyDown={handleKeyDownOnURLInput}
-          style={{ marginTop: '20px' }} />
+          style={{ marginTop: '20px', marginRight: '10px' }} />
 
         <Button
           variant="contained"
@@ -152,6 +153,7 @@ function App(): JSX.Element {
 
 
       <div style={{ clear: 'both' }}></div>
+      <br/>
       {error &&
         <Alert onClick={() => setError(null)} icon={<ErrorOutlineIcon fontSize="inherit" />} severity="error">
           {error}
