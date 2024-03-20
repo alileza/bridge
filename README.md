@@ -10,14 +10,13 @@ Bridge is a lightweight URL shortener server designed for simplicity, ease of op
   
 - **Easy to Operate:** Setting up and managing Bridge is effortless, making it ideal for both beginners and experienced users alike.
   
-- **Cost-Effective Storage Options:** Bridge supports both local storage and remote storage using Amazon S3, allowing users to choose the storage solution that best fits their needs and budget.
 
 ## Getting Started 
 
 To deploy Bridge and start shortening URLs, follow these simple steps:
 
 1. Clone the repository to your local machine.
-2. Configure the server settings according to your preferences, including selecting either local storage or S3 for route configuration.
+2. Configure the server settings according to your preferences, just follow the interface
 3. Deploy Bridge to your preferred hosting environment.
 4. Start shortening URLs with ease!
 
