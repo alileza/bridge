@@ -13,6 +13,7 @@ import './App.css';
 import { Typography } from '@mui/material';
 import { TextField, Button } from '@mui/material';
 import GitHubIcon from '@mui/icons-material/GitHub';
+import StarIcon from '@mui/icons-material/Star';
 
 function App(): JSX.Element {
   const [copied, setCopied] = useState(false);
@@ -105,14 +106,15 @@ function App(): JSX.Element {
           bridge
         </Typography>
         <GitHubIcon fontSize="large" style={{ marginTop: '20px', marginLeft: '20px' }} />
+        <StarIcon fontSize="large" style={{ animation: 'blink 2s infinite alternate, jitter 0.5s infinite alternate', marginTop: '20px', marginLeft: '20px' }} />
       </Link>
       
-      <div style={{float: 'right'}}>
+      <div style={{float: 'right', width: '50%'}}>
 
       <TextField
           id="search-bar"
           label="Search"
-          variant="outlined"
+          variant="filled"
           size="small"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -124,22 +126,22 @@ function App(): JSX.Element {
         <TextField
           id="key"
           label="/<smthng-shrt>"
-          variant="outlined"
+          variant="standard"
           size="small"
           value={newRoute.key}
           onChange={handleKeyChange}
-          style={{ marginTop: '20px', marginRight: '10px'}}
+          style={{ width: '43%', marginTop: '20px', marginRight: '10px'}}
         />
-
+  
         <TextField
           id="url"
           label="Destination URL (http://...)"
-          variant="outlined"
+          variant="standard"
           size="small"
           value={newRoute.url}
           onChange={handleURLChange}
           onKeyDown={handleKeyDownOnURLInput}
-          style={{ marginTop: '20px', marginRight: '10px' }} />
+          style={{ width: '43%',marginTop: '20px', marginRight: '10px' }} />
 
         <Button
           variant="contained"
@@ -148,9 +150,7 @@ function App(): JSX.Element {
         >
           Save
         </Button>
-
       </div>
-
 
       <div style={{ clear: 'both' }}></div>
       <br/>

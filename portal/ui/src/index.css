@@ -1,11 +1,26 @@
 h2 {
+    font-weight: 800 !important;
+}
+h2, span {
     font-family: "Baltore", sans-serif !important;
-    font-weight: 400 !important;
-    font-style: bold;
-    background-color: white;
+    font-weight: 400;
     color: black;
 }
  
 .MuiButton-root {
     background: black;
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes jitter {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-1px, -1px); }
+    50% { transform: translate(1px, 1px); }
+    75% { transform: translate(-1px, 1px); }
+    100% { transform: translate(1px, -1px); }
 }
