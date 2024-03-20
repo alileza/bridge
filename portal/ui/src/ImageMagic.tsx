@@ -2,7 +2,6 @@ import AddIcon from '@mui/icons-material/Add';
 import SaveIcon from '@mui/icons-material/Save';
 
 function ImageMagic({ imageContent, routeKeyURL, handleSave }: { imageContent: string, routeKeyURL: string, handleSave: () => void }): JSX.Element {
-    
     if (imageContent === '') {
         if (routeKeyURL !== '') {
             return (
@@ -13,7 +12,6 @@ function ImageMagic({ imageContent, routeKeyURL, handleSave }: { imageContent: s
                 </div>
             );
         }
-
         return (
         <div>
             <div style={{border: 'solid 1px', height: '35px', width: '35px'}} onClick={() => handlePreviewClick(imageContent)}>
@@ -25,7 +23,6 @@ function ImageMagic({ imageContent, routeKeyURL, handleSave }: { imageContent: s
 
     const handlePreviewClick = (imageContent: string) => {
         const newWindow = window.open('', '_blank', 'width=420,height=445');
-        
         if (newWindow) {
             newWindow.document.write(`
             <center>

@@ -10,8 +10,23 @@ import (
 	"bridge/httpredirector"
 	"bridge/opengraph"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var (
+	forwardCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_forward_requests_total",
+			Help: "Total number of requests to the forward handler.",
+		},
+		[]string{"key"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(forwardCounter)
+}
 
 type Server struct {
 	o   *Options
@@ -39,23 +54,25 @@ func NewServer(o *Options) *Server {
 	uiHandler := NewUIHandler(o.UIStaticFilepath, o.UIProxyURL)
 
 	apiMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if url := o.Redirector.GetRedirectURL(r.URL); url == "https://alileza.me/" {
-			o.Logger.Printf("GET %s ", r.URL.Path)
-			if o.UIProxyEnabled {
-				uiHandler.ProxyHandler(w, r)
-			} else {
-				uiHandler.StaticFileHandler(w, r)
-			}
+		keyWithHost := r.Host + r.URL.Path
+		dest, ok := o.Redirector.Storage.Load(keyWithHost)
+		if ok {
+			forwardCounter.With(prometheus.Labels{"key": keyWithHost}).Inc()
+			http.Redirect(w, r, dest.(string), http.StatusFound)
 			return
 		}
 
-		o.Redirector.Handler(w, r)
+		o.Logger.Printf("GET %s ", r.URL.Path)
+		if o.UIProxyEnabled {
+			uiHandler.ProxyHandler(w, r)
+		} else {
+			uiHandler.StaticFileHandler(w, r)
+		}
 	})
 
 	apiMux.HandleFunc("GET /api/routes", func(w http.ResponseWriter, r *http.Request) {
 		o.Logger.Printf("200 - GET /api/routes\n")
-		o.Redirector.BaseURL = "https://" + r.Host
-		responseOk(w, o.Redirector.ListRoutes())
+		responseOk(w, o.Redirector.ListRoutes(r.Host))
 	})
 
 	apiMux.HandleFunc("GET /api/routes/preview", func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +116,7 @@ func NewServer(o *Options) *Server {
 		}
 
 		o.Logger.Printf("202 - PUT /api/routes: %s -> %s\n", request.Key, request.URL)
-		if err := o.Redirector.SetRoute(request.Key, request.URL); err != nil {
+		if err := o.Redirector.SetRoute(r, request.Key, request.URL); err != nil {
 			o.Logger.Println("400 - PUT /api/routes: error setting route:", err)
 			responseError(w, err, http.StatusBadRequest)
 			return

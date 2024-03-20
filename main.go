@@ -27,12 +27,6 @@ func main() {
 				Usage:   "address to listen on",
 				EnvVars: []string{"LISTEN_ADDRESS"},
 			},
-			&cli.BoolFlag{
-				Name:    "enable-opengraph",
-				Usage:   "This will enable opengraph support for the redirector. This will make the redirector fetch the target URL and parse the opengraph tags to use as the redirector's title and description. This will make the redirector slightly slower.",
-				EnvVars: []string{"ENABLE_OPENGRAPH"},
-				Aliases: []string{"o", "opengraph", "og"},
-			},
 			&cli.StringFlag{
 				Name:    "ui-static-path",
 				Aliases: []string{"ui", "static"},
@@ -68,7 +62,6 @@ func main() {
 			staticPath := c.String("static-path")
 			proxyEnabled := c.Bool("proxy-enabled")
 			proxyURL := c.String("proxy-url")
-			enableOpengraph := c.Bool("enable-opengraph")
 			storagePath := c.String("storage-path")
 
 			var store httpredirector.Storage
@@ -105,8 +98,7 @@ func main() {
 				UIProxyURL:       proxyURL,
 
 				Redirector: &httpredirector.HTTPRedirector{
-					EnableOpengraph: enableOpengraph,
-					Storage:         store,
+					Storage: store,
 				},
 			})
 
