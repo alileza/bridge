@@ -15,10 +15,28 @@ Bridge is a lightweight URL shortener server designed for simplicity, ease of op
 
 To deploy Bridge and start shortening URLs, follow these simple steps:
 
-1. Clone the repository to your local machine.
-2. Configure the server settings according to your preferences, just follow the interface
-3. Deploy Bridge to your preferred hosting environment.
-4. Start shortening URLs with ease!
+
+
+
+
+
+
+```sh
+$ go install .
+
+$ bridge
+2024/03/20 05:09:29 Storage: error reading file: open ./bridgedata/routes.json: no such file or directory
+2024/03/20 05:09:29 Storage: creating new file: ./bridgedata/routes.json
+portal: 2024/03/20 05:09:29 Listening on 0.0.0.0:8080
+```
+
+### In action
+
+
+https://github.com/alileza/bridge/assets/1962129/e3da4868-2a72-40ae-876a-69560364d5a5
+
+
+
 
 ## Contributing 
 
