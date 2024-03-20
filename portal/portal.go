@@ -1,15 +1,20 @@
 package portal
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"log"
 	"net/http"
 	"os"
 
 	"bridge/httpredirector"
-	"bridge/opengraph"
 
+	"github.com/boombuler/barcode"
+	"github.com/boombuler/barcode/qr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -50,7 +55,7 @@ func NewServer(o *Options) *Server {
 		o.Logger = log.New(os.Stdout, "portal: ", log.LstdFlags)
 	}
 
-	uiHandler := NewUIHandler("", o.UIProxyURL)
+	uiHandler := NewUIHandler(o.UIProxyURL)
 
 	apiMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		keyWithHost := r.Host + r.URL.Path
@@ -61,7 +66,7 @@ func NewServer(o *Options) *Server {
 			return
 		}
 
-		o.Logger.Printf("GET %s ", r.URL.Path)
+		// o.Logger.Printf("GET %s ", r.URL.Path)
 		if o.UIProxyEnabled {
 			uiHandler.ProxyHandler(w, r)
 		} else {
@@ -81,17 +86,24 @@ func NewServer(o *Options) *Server {
 
 		o.Logger.Printf("0 - GET /api/routes/preview: %s\n", url)
 
-		img, err := opengraph.GenerateBarcode(url)
+		img, err := generateBarcode(url)
 		if err != nil {
 			o.Logger.Println("500 - GET /api/routes/preview: error generating barcode:", err)
 			responseError(w, err, http.StatusInternalServerError)
 			return
 		}
-		b64image := opengraph.EncodeImageToBase64(img)
 
-		responseOk(w, map[string]any{
-			"image": b64image,
-		})
+		buffer := new(bytes.Buffer)
+		if err := png.Encode(buffer, img); err != nil {
+			o.Logger.Println("500 - GET /api/routes/preview: error encoding barcode:", err)
+			responseError(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", buffer.Len()))
+		w.WriteHeader(http.StatusOK)
+		w.Write(buffer.Bytes())
 	})
 
 	apiMux.HandleFunc("PUT /api/routes", func(w http.ResponseWriter, r *http.Request) {
@@ -168,4 +180,27 @@ func responseError(w http.ResponseWriter, err error, code int) {
 func (s *Server) Start() error {
 	s.o.Logger.Printf("Listening on %s\n", s.o.ListenAddress)
 	return s.srv.ListenAndServe()
+}
+
+func generateBarcode(url string) (image.Image, error) {
+	qrCode, err := qr.Encode(url, qr.L, qr.Auto)
+	if err != nil {
+		return nil, err
+	}
+	qrCode, err = barcode.Scale(qrCode, 200, 200)
+	if err != nil {
+		return nil, err
+	}
+	return qrCode, nil
+}
+
+func encodeImageToBase64(img image.Image) string {
+	// Encode the image as PNG
+	buf := new(bytes.Buffer)
+	_ = png.Encode(buf, img)
+
+	// Encode the PNG image as base64
+	encodedStr := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	return encodedStr
 }

@@ -10,14 +10,12 @@ import (
 )
 
 type UIHandler struct {
-	StaticFilepath string
-	ProxyURL       string
+	ProxyURL string
 }
 
-func NewUIHandler(staticFilepath string, proxyURL string) *UIHandler {
+func NewUIHandler(proxyURL string) *UIHandler {
 	return &UIHandler{
-		StaticFilepath: staticFilepath,
-		ProxyURL:       proxyURL,
+		ProxyURL: proxyURL,
 	}
 }
 
@@ -32,11 +30,10 @@ func (p *UIHandler) Handler(proxyEnabled bool) http.Handler {
 }
 
 func (p *UIHandler) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
-
 	if r.URL.Path == "/" {
 		r.URL.Path = "/index.html"
 	}
-	log.Println("ui/dist" + r.URL.Path)
+
 	b, err := assets.ReadFile("ui/dist" + r.URL.Path)
 	if err != nil {
 		log.Println("Error reading file", err.Error())
@@ -51,8 +48,6 @@ func (p *UIHandler) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css")
 	}
 	w.Write(b)
-
-	// http.FileServer(http.Dir(p.StaticFilepath)).ServeHTTP(w, r)
 }
 
 func (p *UIHandler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
