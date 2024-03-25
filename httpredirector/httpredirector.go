@@ -4,10 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 )
-
-const DefaultRedirectURL = "https://alileza.me/"
 
 type HTTPRedirector struct {
 	Storage Storage
@@ -19,29 +16,34 @@ type Route struct {
 }
 
 type Storage interface {
-	Store(key any, value any)
-	Load(key any) (value any, ok bool)
-	Delete(key any)
-	Range(f func(key any, value any) bool)
+	Set(key string, url string) (err error)
+	Get(key string) (url string, err error)
+	Delete(key string) (err error)
+	List() (listURL []Route, err error)
+	Reload() (err error)
+}
+
+func (rdr *HTTPRedirector) ListAllRoutes() ([]Route, error) {
+	return rdr.Storage.List()
 }
 
 // ListRoutes returns a list of all routes in the redirector
-func (rdr *HTTPRedirector) ListRoutes(host string) []Route {
-	var routes []Route
+func (rdr *HTTPRedirector) ListRoutes(host string) ([]Route, error) {
+	routes, err := rdr.Storage.List()
+	if err != nil {
+		return nil, err
+	}
+	return filterRoutes(routes, host), nil
+}
 
-	rdr.Storage.Range(func(k, v interface{}) bool {
-		if !strings.HasPrefix(k.(string), host) {
-			return true
+func filterRoutes(routes []Route, host string) []Route {
+	var filteredRoutes []Route
+	for _, route := range routes {
+		if route.Key == host {
+			filteredRoutes = append(filteredRoutes, route)
 		}
-
-		routes = append(routes, Route{
-			Key: k.(string),
-			URL: v.(string),
-		})
-		return true
-	})
-
-	return routes
+	}
+	return filteredRoutes
 }
 
 // AddRoute adds a route to the redirector it can be path or full with hostname without scheme
@@ -57,16 +59,14 @@ func (rdr *HTTPRedirector) SetRoute(r *http.Request, key string, destURL string)
 
 	key = r.Host + key
 
-	rdr.Storage.Store(key, destURL)
-	return nil
+	return rdr.Storage.Set(key, destURL)
 }
 
 // RemoveRoute removes a route from the redirector
 func (rdr *HTTPRedirector) RemoveRoute(key string) error {
-	if _, ok := rdr.Storage.Load(key); !ok {
-		return fmt.Errorf("route not found: %s", key)
+	if _, err := rdr.Storage.Get(key); err != nil {
+		return fmt.Errorf("route not found: %s => %w", key, err)
 	}
 
-	rdr.Storage.Delete(key)
-	return nil
+	return rdr.Storage.Delete(key)
 }

@@ -2,7 +2,6 @@ package portal
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -10,22 +9,30 @@ import (
 	"log"
 	"net/http"
 	"os"
-
-	"bridge/httpredirector"
+	"strings"
 
 	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/qr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/alileza/bridge/httpredirector"
 )
 
 var (
 	forwardCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "http_forward_requests_total",
+			Name: "bridge_routes_forwarded_total",
 			Help: "Total number of requests to the forward handler.",
 		},
 		[]string{"key"},
+	)
+	routesRegistered = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "bridge_routes_registered_count",
+			Help: "Total number of requests to the forward handler.",
+		},
+		[]string{"host"},
 	)
 )
 
@@ -55,34 +62,58 @@ func NewServer(o *Options) *Server {
 		o.Logger = log.New(os.Stdout, "portal: ", log.LstdFlags)
 	}
 
-	uiHandler := NewUIHandler(o.UIProxyURL)
-
 	apiMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		keyWithHost := r.Host + r.URL.Path
-		dest, ok := o.Redirector.Storage.Load(keyWithHost)
-		if ok {
+		// lookup the key in the storage, if it exists, redirect
+		dest, err := o.Redirector.Storage.Get(keyWithHost)
+		if err == nil {
 			forwardCounter.With(prometheus.Labels{"key": keyWithHost}).Inc()
-			http.Redirect(w, r, dest.(string), http.StatusFound)
+			http.Redirect(w, r, dest, http.StatusFound)
+			return
+		} else {
+			o.Logger.Printf("404 - GET %s ", r.URL.Path)
+		}
+
+		if r.URL.Path == "/" {
+			r.URL.Path = "/index.html"
+		}
+
+		b, err := assets.ReadFile("ui/dist" + r.URL.Path)
+		if err != nil {
+			log.Println("Error reading file", err.Error())
+			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 
-		// o.Logger.Printf("GET %s ", r.URL.Path)
-		if o.UIProxyEnabled {
-			uiHandler.ProxyHandler(w, r)
-		} else {
-			uiHandler.StaticFileHandler(w, r)
+		if strings.HasSuffix(r.URL.Path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript")
 		}
+		if strings.HasSuffix(r.URL.Path, ".css") {
+			w.Header().Set("Content-Type", "text/css")
+		}
+		w.Write(b)
 	})
 
 	apiMux.HandleFunc("GET /api/routes", func(w http.ResponseWriter, r *http.Request) {
 		o.Logger.Printf("200 - GET /api/routes\n")
-		responseOk(w, o.Redirector.ListRoutes(r.Host))
+		routes, err := o.Redirector.ListRoutes(r.Host)
+		if err != nil {
+			o.Logger.Println("500 - GET /api/routes: error listing routes:", err)
+			responseError(w, err, http.StatusInternalServerError)
+			return
+		}
+		responseOk(w, routes)
 	})
 
-	apiMux.HandleFunc("GET /api/routes/preview", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("GET /api/routes/barcode", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 
 		url := r.Form.Get("url")
+		if url == "" {
+			o.Logger.Println("400 - GET /api/routes/preview: empty url")
+			responseError(w, fmt.Errorf("empty url"), http.StatusBadRequest)
+			return
+		}
 
 		o.Logger.Printf("0 - GET /api/routes/preview: %s\n", url)
 
@@ -192,15 +223,4 @@ func generateBarcode(url string) (image.Image, error) {
 		return nil, err
 	}
 	return qrCode, nil
-}
-
-func encodeImageToBase64(img image.Image) string {
-	// Encode the image as PNG
-	buf := new(bytes.Buffer)
-	_ = png.Encode(buf, img)
-
-	// Encode the PNG image as base64
-	encodedStr := base64.StdEncoding.EncodeToString(buf.Bytes())
-
-	return encodedStr
 }

@@ -1,14 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
 	"github.com/urfave/cli/v2"
 
-	"bridge/httpredirector"
-	"bridge/portal"
-	"bridge/storage"
+	"github.com/alileza/bridge/httpredirector"
+	"github.com/alileza/bridge/portal"
+	"github.com/alileza/bridge/storage"
 )
 
 func main() {
@@ -32,7 +33,7 @@ func main() {
 				Name:    "proxy-enabled",
 				Aliases: []string{"p", "proxy"},
 				Value:   false,
-				Usage:   "enable proxy mode",
+				Usage:   "enable proxy mode, it's useful for development UI",
 				EnvVars: []string{"PROXY_ENABLED"},
 				Hidden:  true,
 			},
@@ -40,7 +41,7 @@ func main() {
 				Name:    "proxy-url",
 				Aliases: []string{"u", "url"},
 				Value:   "http://localhost:5173",
-				Usage:   "proxy URL",
+				Usage:   "proxy URL for UI, e.g. http://localhost:5173",
 				EnvVars: []string{"PROXY_URL"},
 				Hidden:  true,
 			},
@@ -52,7 +53,11 @@ func main() {
 			storageDir := c.String("storage-dir")
 
 			os.MkdirAll(storageDir, 0755)
-			store := storage.NewStorage(storageDir + "/routes.json")
+
+			store, err := storage.NewJSONFileStorage(storageDir)
+			if err != nil {
+				return fmt.Errorf("error initializing storage: %s", err)
+			}
 
 			prtl := portal.NewServer(&portal.Options{
 				ListenAddress: listenAddress,
