@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"bridge/httpredirector"
+	"github.com/alileza/bridge/httpredirector"
 )
 
 type ShardFileStorage struct {

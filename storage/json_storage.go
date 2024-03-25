@@ -1,12 +1,13 @@
 package storage
 
 import (
-	"bridge/httpredirector"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/alileza/bridge/httpredirector"
 )
 
 type JSONFileStorage struct {
