@@ -19,6 +19,7 @@ const (
 type Entry struct {
 	Time        time.Time `json:"time"`
 	Actor       string    `json:"actor"`
+	ActorEmails []string  `json:"actor_emails,omitempty"`
 	Action      string    `json:"action"`
 	Key         string    `json:"key"`
 	URL         string    `json:"url,omitempty"`

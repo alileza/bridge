@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -49,6 +48,16 @@ type Config struct {
 type GitHub struct {
 	c Config
 }
+
+// Identity is the logged-in GitHub user.
+type Identity struct {
+	Login string `json:"l"`
+	// Emails are the user's verified emails, primary first; empty if GitHub didn't share any.
+	Emails []string `json:"e,omitempty"`
+}
+
+// maxEmails caps how many emails are kept, to bound the session cookie size.
+const maxEmails = 10
 
 func NewGitHub(c Config) (*GitHub, error) {
 	if c.ClientID == "" || c.ClientSecret == "" {
@@ -88,11 +97,11 @@ func (g *GitHub) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/logout", g.logout)
 }
 
-// User returns the GitHub login of the request's session, if any.
-func (g *GitHub) User(r *http.Request) (string, bool) {
+// User returns the GitHub identity of the request's session, if any.
+func (g *GitHub) User(r *http.Request) (Identity, bool) {
 	c, err := r.Cookie(sessionCookie)
 	if err != nil {
-		return "", false
+		return Identity{}, false
 	}
 	return g.verify(c.Value, time.Now())
 }
@@ -126,7 +135,7 @@ func (g *GitHub) login(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
 	})
 
-	scope := "read:user"
+	scope := "read:user user:email"
 	if len(g.c.AllowedOrgs) > 0 {
 		scope += " read:org"
 	}
@@ -156,13 +165,14 @@ func (g *GitHub) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	login, err := g.fetchLogin(token)
+	id, err := g.fetchIdentity(token)
 	if err != nil {
 		g.c.Logger.Println("github auth: fetching user failed:", err)
 		http.Error(w, "github login failed", http.StatusBadGateway)
 		return
 	}
 
+	login := id.Login
 	allowed, err := g.allowed(token, login)
 	if err != nil {
 		g.c.Logger.Println("github auth: checking org membership failed:", err)
@@ -177,7 +187,7 @@ func (g *GitHub) callback(w http.ResponseWriter, r *http.Request) {
 
 	g.c.Logger.Printf("github auth: %s logged in", login)
 	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: g.sign(login, time.Now().Add(g.c.SessionTTL)), Path: "/",
+		Name: sessionCookie, Value: g.sign(id, time.Now().Add(g.c.SessionTTL)), Path: "/",
 		MaxAge: int(g.c.SessionTTL.Seconds()), HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -218,17 +228,48 @@ func (g *GitHub) exchange(code, redirectURI string) (string, error) {
 	return body.AccessToken, nil
 }
 
-func (g *GitHub) fetchLogin(token string) (string, error) {
+func (g *GitHub) fetchIdentity(token string) (Identity, error) {
 	var user struct {
 		Login string `json:"login"`
+		Email string `json:"email"`
 	}
 	if err := g.api(token, "/user", &user); err != nil {
-		return "", err
+		return Identity{}, err
 	}
 	if user.Login == "" {
-		return "", errors.New("empty login")
+		return Identity{}, errors.New("empty login")
 	}
-	return user.Login, nil
+	id := Identity{Login: user.Login}
+	if user.Email != "" {
+		id.Emails = []string{user.Email}
+	}
+
+	// The profile email is only set when public; ask for all verified ones.
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := g.api(token, "/user/emails", &emails); err != nil {
+		g.c.Logger.Printf("github auth: could not read emails for %s: %v", user.Login, err)
+		return id, nil
+	}
+	var verified []string
+	for _, e := range emails {
+		if !e.Verified {
+			continue
+		}
+		if e.Primary {
+			verified = append([]string{e.Email}, verified...)
+		} else {
+			verified = append(verified, e.Email)
+		}
+	}
+	if len(verified) > maxEmails {
+		verified = verified[:maxEmails]
+	}
+	id.Emails = verified
+	return id, nil
 }
 
 func (g *GitHub) allowed(token, login string) (bool, error) {
@@ -277,27 +318,32 @@ func (g *GitHub) do(req *http.Request, v any) error {
 	return json.NewDecoder(resp.Body).Decode(v)
 }
 
-// sign produces "<login>|<unix expiry>.<hmac>", base64url-encoded.
-func (g *GitHub) sign(login string, expires time.Time) string {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(login + "|" + strconv.FormatInt(expires.Unix(), 10)))
+type session struct {
+	Identity
+	Expires int64 `json:"x"`
+}
+
+// sign produces "<base64url JSON session>.<base64url HMAC>".
+func (g *GitHub) sign(id Identity, expires time.Time) string {
+	b, _ := json.Marshal(session{Identity: id, Expires: expires.Unix()})
+	payload := base64.RawURLEncoding.EncodeToString(b)
 	return payload + "." + g.mac(payload)
 }
 
-func (g *GitHub) verify(value string, now time.Time) (string, bool) {
+func (g *GitHub) verify(value string, now time.Time) (Identity, bool) {
 	payload, sig, ok := strings.Cut(value, ".")
 	if !ok || !hmac.Equal([]byte(sig), []byte(g.mac(payload))) {
-		return "", false
+		return Identity{}, false
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(payload)
 	if err != nil {
-		return "", false
+		return Identity{}, false
 	}
-	login, exp, ok := strings.Cut(string(raw), "|")
-	expUnix, err := strconv.ParseInt(exp, 10, 64)
-	if !ok || err != nil || now.Unix() > expUnix {
-		return "", false
+	var s session
+	if err := json.Unmarshal(raw, &s); err != nil || s.Login == "" || now.Unix() > s.Expires {
+		return Identity{}, false
 	}
-	return login, true
+	return s.Identity, true
 }
 
 func (g *GitHub) mac(payload string) string {

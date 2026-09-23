@@ -75,7 +75,13 @@ bridge \
 
 If neither allowlist is set, **any** GitHub user can log in (bridge logs a warning).
 
-Every create, update and delete is appended to `<storage-dir>.audit.jsonl` with who did it, when, and the old and new URL. It's shown in the portal's **Activity** tab and on each route, and available at `GET /api/audit?limit=100&key=<host/path>`. Without GitHub login, changes are recorded as `anonymous`.
+Every create, update and delete is appended to `<storage-dir>.audit.jsonl` (JSON Lines) with who did it, their verified GitHub emails, when, and the old and new URL:
+
+```json
+{"time":"2026-09-23T21:07:00Z","actor":"alice","actor_emails":["alice@acme.com","alice@personal.dev"],"action":"update","key":"go.acme.com/gh","url":"https://github.com/acme","previous_url":"https://github.com"}
+```
+
+Bridge requests the `user:email` scope to read verified emails (primary first; unverified ones are ignored). It's shown in the portal's **Activity** tab and on each route, and available at `GET /api/audit?limit=100&key=<host/path>`. Without GitHub login, changes are recorded as `anonymous`.
 
 ## Monitoring
 

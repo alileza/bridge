@@ -11,6 +11,7 @@ export type Routes = Route[];
 export interface AuditEntry {
   time: string;
   actor: string;
+  actor_emails?: string[];
   action: 'create' | 'update' | 'delete';
   key: string;
   url?: string;
@@ -21,4 +22,5 @@ export interface Me {
   auth_enabled: boolean;
   authenticated: boolean;
   login?: string;
+  emails?: string[];
 }

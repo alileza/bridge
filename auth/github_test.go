@@ -17,9 +17,9 @@ func TestSessionSignVerify(t *testing.T) {
 	g, _ := NewGitHub(Config{ClientID: "id", ClientSecret: "secret", SessionSecret: []byte("k")})
 	now := time.Now()
 
-	v := g.sign("octocat", now.Add(time.Hour))
-	if login, ok := g.verify(v, now); !ok || login != "octocat" {
-		t.Fatalf("verify(valid) = %q, %v", login, ok)
+	v := g.sign(Identity{Login: "octocat", Emails: []string{"o|c@example.com", "b@example.com"}}, now.Add(time.Hour))
+	if id, ok := g.verify(v, now); !ok || id.Login != "octocat" || strings.Join(id.Emails, ",") != "o|c@example.com,b@example.com" {
+		t.Fatalf("verify(valid) = %+v, %v", id, ok)
 	}
 	if _, ok := g.verify(v, now.Add(2*time.Hour)); ok {
 		t.Error("verify accepted an expired session")
@@ -28,7 +28,7 @@ func TestSessionSignVerify(t *testing.T) {
 		t.Error("verify accepted a tampered signature")
 	}
 	payload, sig, _ := strings.Cut(v, ".")
-	forged := g.sign("admin", now.Add(time.Hour))
+	forged := g.sign(Identity{Login: "admin"}, now.Add(time.Hour))
 	forgedPayload, _, _ := strings.Cut(forged, ".")
 	if _, ok := g.verify(forgedPayload+"."+sig, now); ok {
 		t.Error("verify accepted a swapped payload")
@@ -41,7 +41,8 @@ func TestSessionSignVerify(t *testing.T) {
 }
 
 // fakeGitHub serves the OAuth and API endpoints used by the login flow.
-func fakeGitHub(t *testing.T, login string, orgs []string) *httptest.Server {
+// When emailsStatus is not 200, GET /user/emails fails with that status.
+func fakeGitHub(t *testing.T, login string, orgs []string, emailsStatus int) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /login/oauth/authorize", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -60,7 +61,18 @@ func fakeGitHub(t *testing.T, login string, orgs []string) *httptest.Server {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"login": login})
+		json.NewEncoder(w).Encode(map[string]string{"login": login, "email": "public@example.com"})
+	})
+	mux.HandleFunc("GET /user/emails", func(w http.ResponseWriter, r *http.Request) {
+		if emailsStatus != http.StatusOK {
+			w.WriteHeader(emailsStatus)
+			return
+		}
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"email": "work@example.com", "primary": false, "verified": true},
+			{"email": "unverified@example.com", "primary": false, "verified": false},
+			{"email": "octocat@example.com", "primary": true, "verified": true},
+		})
 	})
 	mux.HandleFunc("GET /user/orgs", func(w http.ResponseWriter, r *http.Request) {
 		var out []map[string]string
@@ -80,17 +92,23 @@ func TestLoginFlow(t *testing.T) {
 		allowedOrgs  []string
 		allowedUsers []string
 		userOrgs     []string
+		emailsStatus int
 		wantStatus   int
+		wantBody     string
 	}{
-		{name: "no allowlist", wantStatus: http.StatusOK},
-		{name: "allowed user", allowedUsers: []string{"OctoCat"}, wantStatus: http.StatusOK},
-		{name: "allowed org", allowedOrgs: []string{"acme"}, userOrgs: []string{"other", "ACME"}, wantStatus: http.StatusOK},
+		{name: "no allowlist", wantStatus: http.StatusOK, wantBody: "hello octocat <octocat@example.com,work@example.com>"},
+		{name: "allowed user", allowedUsers: []string{"OctoCat"}, wantStatus: http.StatusOK, wantBody: "hello octocat <octocat@example.com,work@example.com>"},
+		{name: "allowed org", allowedOrgs: []string{"acme"}, userOrgs: []string{"other", "ACME"}, wantStatus: http.StatusOK, wantBody: "hello octocat <octocat@example.com,work@example.com>"},
+		{name: "emails endpoint forbidden falls back to profile email", emailsStatus: http.StatusForbidden, wantStatus: http.StatusOK, wantBody: "hello octocat <public@example.com>"},
 		{name: "not in org", allowedOrgs: []string{"acme"}, userOrgs: []string{"other"}, wantStatus: http.StatusForbidden},
 		{name: "not allowed user", allowedUsers: []string{"someone"}, wantStatus: http.StatusForbidden},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gh := fakeGitHub(t, "octocat", tt.userOrgs)
+			if tt.emailsStatus == 0 {
+				tt.emailsStatus = http.StatusOK
+			}
+			gh := fakeGitHub(t, "octocat", tt.userOrgs, tt.emailsStatus)
 			g, err := NewGitHub(Config{
 				ClientID: "id", ClientSecret: "secret",
 				AllowedOrgs: tt.allowedOrgs, AllowedUsers: tt.allowedUsers,
@@ -109,8 +127,8 @@ func TestLoginFlow(t *testing.T) {
 				if !g.RequirePage(w, r) {
 					return
 				}
-				login, _ := g.User(r)
-				io.WriteString(w, "hello "+login)
+				id, _ := g.User(r)
+				io.WriteString(w, "hello "+id.Login+" <"+strings.Join(id.Emails, ",")+">")
 			})
 			app := httptest.NewServer(mux)
 			defer app.Close()
@@ -128,8 +146,8 @@ func TestLoginFlow(t *testing.T) {
 			if resp.StatusCode != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %q)", resp.StatusCode, tt.wantStatus, body)
 			}
-			if tt.wantStatus == http.StatusOK && string(body) != "hello octocat" {
-				t.Fatalf("body = %q, want %q", body, "hello octocat")
+			if tt.wantBody != "" && string(body) != tt.wantBody {
+				t.Fatalf("body = %q, want %q", body, tt.wantBody)
 			}
 		})
 	}
@@ -157,7 +175,7 @@ func TestRequireAPI(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/routes", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: g.sign("octocat", time.Now().Add(time.Hour))})
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: g.sign(Identity{Login: "octocat"}, time.Now().Add(time.Hour))})
 	rec = httptest.NewRecorder()
 	h(rec, req)
 	if rec.Code != http.StatusTeapot {

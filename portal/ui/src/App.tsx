@@ -199,7 +199,7 @@ function App(): JSX.Element {
         {me?.authenticated && me.login &&
           <Box className="user">
             <Avatar src={`https://github.com/${me.login}.png?size=64`} alt="" sx={{ width: 28, height: 28 }} />
-            <Typography variant="body2">@{me.login}</Typography>
+            <Typography variant="body2" title={me.emails?.join(', ')}>@{me.login}</Typography>
             <Tooltip title="Log out">
               <IconButton size="small" onClick={handleLogout} aria-label="Log out">
                 <LogoutIcon fontSize="small" />
@@ -256,7 +256,7 @@ function App(): JSX.Element {
                   {timeAgo(e.time)}
                 </Typography>
                 <Typography variant="body2" className="activity-text">
-                  <strong>@{e.actor}</strong> {actionLabel[e.action]} <strong>{shortKey(e.key)}</strong>
+                  <strong title={e.actor_emails?.join(', ')}>@{e.actor}</strong> {actionLabel[e.action]} <strong>{shortKey(e.key)}</strong>
                   {e.action === 'update' && <> <span className="muted">{e.previous_url}</span> → {e.url}</>}
                   {e.action === 'create' && <> → {e.url}</>}
                   {e.action === 'delete' && e.previous_url && <> <span className="muted">(was {e.previous_url})</span></>}

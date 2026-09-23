@@ -76,13 +76,13 @@ func NewServer(o *Options) *Server {
 		}
 		return o.Auth.RequireAPI(h)
 	}
-	actor := func(r *http.Request) string {
+	actor := func(r *http.Request) auth.Identity {
 		if o.Auth != nil {
-			if login, ok := o.Auth.User(r); ok {
-				return login
+			if id, ok := o.Auth.User(r); ok {
+				return id
 			}
 		}
-		return "anonymous"
+		return auth.Identity{Login: "anonymous"}
 	}
 	record := func(e audit.Entry) {
 		if o.Audit == nil {
@@ -94,6 +94,11 @@ func NewServer(o *Options) *Server {
 		}
 	}
 
+	withActor := func(id auth.Identity, e audit.Entry) audit.Entry {
+		e.Actor, e.ActorEmails = id.Login, id.Emails
+		return e
+	}
+
 	if o.Auth != nil {
 		o.Auth.Register(apiMux)
 	}
@@ -101,8 +106,8 @@ func NewServer(o *Options) *Server {
 	apiMux.HandleFunc("GET /api/me", func(w http.ResponseWriter, r *http.Request) {
 		me := map[string]any{"auth_enabled": o.Auth != nil, "authenticated": false}
 		if o.Auth != nil {
-			if login, ok := o.Auth.User(r); ok {
-				me["authenticated"], me["login"] = true, login
+			if id, ok := o.Auth.User(r); ok {
+				me["authenticated"], me["login"], me["emails"] = true, id.Login, id.Emails
 			}
 		}
 		responseOk(w, me)
@@ -243,9 +248,9 @@ func NewServer(o *Options) *Server {
 		metrics.routeChanges.Inc("set")
 		switch {
 		case getErr != nil:
-			record(audit.Entry{Actor: actor(r), Action: audit.ActionCreate, Key: fullKey, URL: request.URL})
+			record(withActor(actor(r), audit.Entry{Action: audit.ActionCreate, Key: fullKey, URL: request.URL}))
 		case previous != request.URL:
-			record(audit.Entry{Actor: actor(r), Action: audit.ActionUpdate, Key: fullKey, URL: request.URL, PreviousURL: previous})
+			record(withActor(actor(r), audit.Entry{Action: audit.ActionUpdate, Key: fullKey, URL: request.URL, PreviousURL: previous}))
 		}
 		w.WriteHeader(http.StatusAccepted)
 	}))
@@ -263,7 +268,7 @@ func NewServer(o *Options) *Server {
 		previous, _ := o.Redirector.Storage.Get(request.Key)
 		if err := o.Redirector.RemoveRoute(request.Key); err == nil {
 			metrics.routeChanges.Inc("delete")
-			record(audit.Entry{Actor: actor(r), Action: audit.ActionDelete, Key: request.Key, PreviousURL: previous})
+			record(withActor(actor(r), audit.Entry{Action: audit.ActionDelete, Key: request.Key, PreviousURL: previous}))
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
