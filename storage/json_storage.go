@@ -15,6 +15,7 @@ type JSONFileStorage struct {
 	FilePath string
 
 	routes *sync.Map
+	saveMu sync.Mutex // serialises snapshot+write so an older snapshot never wins
 }
 
 // NewJSONFileStorage creates a new instance of JSONFileStorage.
@@ -92,56 +93,39 @@ func (fs *JSONFileStorage) Reload() error {
 	return nil
 }
 
+// saveToFile writes all in-memory routes to the file, replacing its contents.
+// It writes to a temp file and renames it, so a crash never leaves a partial file.
 func (ls *JSONFileStorage) saveToFile() error {
-	// Check if the file exists
-	if _, err := os.Stat(ls.FilePath); err == nil {
-		// File exists, read its contents
-		existingData, err := os.ReadFile(ls.FilePath)
-		if err != nil {
-			return fmt.Errorf("storage: error reading file: %s", err)
-		}
+	ls.saveMu.Lock()
+	defer ls.saveMu.Unlock()
 
-		// Decode existing data into a map
-		var existingMap map[string]string
-		if err := json.Unmarshal(existingData, &existingMap); err != nil {
-			return fmt.Errorf("storage: error decoding existing file data: %s", err)
-		}
-
-		// Update existing data with new data
-		ls.routes.Range(func(k, v any) bool {
-			existingMap[k.(string)] = v.(string)
-			return true
-		})
-
-		// Encode the updated data and write it back to the file
-		newData, err := json.Marshal(existingMap)
-		if err != nil {
-			return fmt.Errorf("storage: error encoding updated data: %s", err)
-		}
-
-		if err := os.WriteFile(ls.FilePath, newData, 0644); err != nil {
-			return fmt.Errorf("storage: error writing updated data to file: %s", err)
-		}
-		return nil
-	}
-
-	// If the file doesn't exist, create a new one and write the data to it
-	f, err := os.Create(ls.FilePath)
-	if err != nil {
-		return fmt.Errorf("storage: error creating file: %s", err)
-	}
-	defer f.Close()
-
-	tmp := make(map[string]string)
+	routes := make(map[string]string)
 	ls.routes.Range(func(k, v any) bool {
-		tmp[k.(string)] = v.(string)
+		routes[k.(string)] = v.(string)
 		return true
 	})
 
-	if err := json.NewEncoder(f).Encode(tmp); err != nil {
-		return fmt.Errorf("storage: error encoding file: %s", err)
+	data, err := json.Marshal(routes)
+	if err != nil {
+		return fmt.Errorf("storage: error encoding routes: %s", err)
 	}
 
+	tmp, err := os.CreateTemp(filepath.Dir(ls.FilePath), filepath.Base(ls.FilePath)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("storage: error creating temp file: %s", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("storage: error writing routes: %s", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("storage: error writing routes: %s", err)
+	}
+	if err := os.Rename(tmp.Name(), ls.FilePath); err != nil {
+		return fmt.Errorf("storage: error replacing routes file: %s", err)
+	}
 	return nil
 }
 
