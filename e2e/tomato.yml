@@ -18,6 +18,11 @@ app:
     timeout: 20s
 
 resources:
+  # Inspects what bridge writes to disk (routes file, audit log).
+  shell:
+    type: shell
+    options:
+      timeout: 30s
   # Two hosts pointing at the same bridge, to check routes are per host.
   api:
     type: http

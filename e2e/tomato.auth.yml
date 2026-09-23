@@ -23,6 +23,11 @@ app:
     timeout: 20s
 
 resources:
+  # Inspects what bridge writes to disk (routes file, audit log).
+  shell:
+    type: shell
+    options:
+      timeout: 30s
   api:
     type: http
     base_url: http://localhost:18081

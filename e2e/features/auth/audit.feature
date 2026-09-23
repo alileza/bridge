@@ -68,3 +68,25 @@ Feature: Audit log with GitHub login
     When "api" sends "POST" to "/auth/logout"
     Then "api" response status is "204"
     And "api" response cookie "bridge_session" is ""
+
+  Scenario: The audit log file records the GitHub user and verified emails
+    Given "api" sends "PUT" to "/api/routes" with json:
+      """
+      {"key": "/e2e-alice-disk", "url": "https://example.com/disk"}
+      """
+    When "shell" runs:
+      """
+      jq -se '
+        map(select(.key == "localhost:18081/e2e-alice-disk")) as $e
+        | ($e | length) == 1
+        and $e[0].action == "create"
+        and $e[0].actor == "alice"
+        and $e[0].actor_emails == ["alice@acme.com", "alice@personal.dev"]
+      ' e2e/.data/auth.audit.jsonl
+      """
+    Then "shell" succeeds
+    When "shell" runs:
+      """
+      jq -e '."localhost:18081/e2e-alice-disk" == "https://example.com/disk"' e2e/.data/auth.json
+      """
+    Then "shell" succeeds

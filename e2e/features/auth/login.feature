@@ -83,3 +83,22 @@ Feature: GitHub login
     Given "api" cookie "bridge_session" is "eyJsIjoiYWRtaW4iLCJ4Ijo5OTk5OTk5OTk5fQ.forged"
     When "api" sends "GET" to "/api/routes"
     Then "api" response status is "401"
+
+  Scenario: The session cookie is locked down
+    Given "github" stub "GET" "/api/v3/user/orgs" returns "200" with json:
+      """
+      [{"login": "acme"}]
+      """
+    And "api" cookie "bridge_oauth_state" is "e2e-state"
+    When "api" sends "GET" to "/auth/callback?code=e2e-code&state=e2e-state"
+    Then "api" response header "Set-Cookie" contains "bridge_oauth_state=;"
+    When "shell" runs:
+      """
+      curl -s -o /dev/null -D - --cookie 'bridge_oauth_state=e2e-state' \
+        'http://localhost:18081/auth/callback?code=e2e-code&state=e2e-state' \
+        | grep -i '^set-cookie: bridge_session='
+      """
+    Then "shell" succeeds
+    And "shell" stdout contains "HttpOnly"
+    And "shell" stdout contains "SameSite=Lax"
+    And "shell" stdout contains "Path=/"
