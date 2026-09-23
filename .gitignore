@@ -1,2 +1,5 @@
-bridgedata
+bridgedata*
 .env
+bin/
+e2e/.data/
+.tomato/
