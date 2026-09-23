@@ -38,6 +38,28 @@ https://github.com/alileza/bridge/assets/1962129/e3da4868-2a72-40ae-876a-6956036
 
 
 
+## Configuration
+
+| Flag | Env | Default | Description |
+| --- | --- | --- | --- |
+| `--listen-address`, `-l` | `LISTEN_ADDRESS` | `0.0.0.0:80` | HTTP listen address |
+| `--storage-dir`, `-s` | | `./bridgedata` | Routes are stored in `<storage-dir>.json` |
+| `--metrics`, `-m` | `METRICS_ENABLED` | `false` | Expose Prometheus metrics at `/metrics` |
+| `--metrics-address` | `METRICS_ADDRESS` | | Serve `/metrics` on a separate address instead (e.g. `0.0.0.0:9090`), keeping it off the public port |
+
+`GET /healthz` returns `200` while the route storage is readable, `503` otherwise.
+
+## Monitoring
+
+With `--metrics` (or `--metrics-address`), bridge exposes Prometheus metrics with no extra dependencies:
+
+- **Activity:** `bridge_redirects_total{host}`, `bridge_routes_forwarded_total{key}`, `bridge_redirect_misses_total{host}`, `bridge_route_changes_total{op}`
+- **Health:** `bridge_storage_up`, `bridge_routes{host}`, `bridge_storage_errors_total{op}`, `bridge_build_info{version}`, `bridge_start_time_seconds`
+- **HTTP:** `bridge_http_requests_total{handler,code}`, `bridge_http_request_duration_seconds{handler}`
+- **Runtime:** `go_goroutines`, `go_memstats_heap_alloc_bytes`, `go_memstats_sys_bytes`, `go_gc_cycles_total`
+
+A ready-made Grafana dashboard lives in [`contrib/grafana/bridge-dashboard.json`](contrib/grafana/bridge-dashboard.json). Import it and pick your Prometheus data source.
+
 ## Releasing
 
 Every merge to `main` cuts a release automatically: a semver tag, a GitHub release with binaries, and a `ghcr.io/alileza/bridge` image.

@@ -78,7 +78,7 @@ jobs:
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os=${target%/*}; arch=${target#*/}
             name="bridge_${VERSION}_${os}_${arch}"
-            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "dist/$name/bridge" .
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o "dist/$name/bridge" .
             tar -C "dist/$name" -czf "dist/$name.tar.gz" bridge
           done
           (cd dist && sha256sum -- *.tar.gz > checksums.txt)
@@ -104,6 +104,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ steps.version.outputs.version }}
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}

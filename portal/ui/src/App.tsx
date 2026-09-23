@@ -1,195 +1,213 @@
 import React, { useEffect, useState } from 'react';
-import Tooltip from '@mui/material/Tooltip';
-import Link from '@mui/material/Link';
-import CheckIcon from '@mui/icons-material/Check';
 import Alert from '@mui/material/Alert';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import Link from '@mui/material/Link';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import {
+  Check as CheckIcon,
+  ContentCopy as ContentCopyIcon,
+  DeleteOutline as DeleteOutlineIcon,
+  ErrorOutline as ErrorOutlineIcon,
+  GitHub as GitHubIcon,
+  Search as SearchIcon,
+  Star as StarIcon,
+} from '@mui/icons-material';
 import { Routes, Route } from './types';
 import './App.css';
-import { Typography } from '@mui/material';
-import { TextField, Button } from '@mui/material';
-import GitHubIcon from '@mui/icons-material/GitHub';
-import StarIcon from '@mui/icons-material/Star';
+
+const emptyRoute: Route = { preview: '', key: '', url: '' };
+
+// Route keys are stored as "<host>/<path>"; show only the path part.
+const shortKey = (key: string) => key.slice(key.indexOf('/'));
 
 function App(): JSX.Element {
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [routes, setRoutes] = useState<Routes>([]);
-  const [newRoute, setNewRoute] = useState<Route>({ preview: '', key: '', url: '' });
+  const [newRoute, setNewRoute] = useState<Route>(emptyRoute);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/routes')
       .then(res => res.json())
-      .then((data: Routes) => {
-        setRoutes(data);
-      })
-      .catch(console.error).finally(() => {
-        setIsLoading(false);
-      })
+      .then((data: Routes | null) => setRoutes(data ?? []))
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
   }, []);
-
-  if (isLoading) {
-    return <Typography variant='h1' >Loading...</Typography>;
-  }
 
   const handleKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newValue = e.target.value;
-
-    if (newValue === '' || (newValue.charAt(0) !== '/' && newValue !== '0')) {
-      newValue = '/';
+    if (newValue === '' || newValue.charAt(0) !== '/') {
+      newValue = '/' + newValue.replace(/^\/*/, '');
     }
     setNewRoute({ ...newRoute, key: newValue });
-  }
-
-
-  const handleURLChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewRoute({ ...newRoute, url: e.target.value });
-  }
-
-  const handleKeyDownOnURLInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSaveNewRoute();
-    }
-  }
-
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text).catch(console.error);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleSaveNewRoute = () => {
+  const handleCopy = (key: string) => {
+    navigator.clipboard.writeText(key).catch(console.error);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1500);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
     fetch('/api/routes', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(newRoute)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRoute),
     })
-      .then((response: Response) => {
+      .then(async (response: Response) => {
         if (response.status !== 202) {
-          if (response.status === 500) {
-            setError('Failed to save new route: ' + response.statusText);
-            return;
-          }
-          response.json().then(data => {
-            setError('Failed to save new route: ' + response.statusText + ' => ' + data.error);
-          });
+          const data = await response.json().catch(() => null);
+          setError(`Failed to save route: ${data?.error ?? response.statusText}`);
           return;
         }
-        
-        newRoute.key = window.location.hostname + newRoute.key;
-        if (routes && routes.length > 0) {
-          setRoutes([newRoute, ...routes]);
-        } else {
-          setRoutes([newRoute]);
-        }
-        setNewRoute({ preview: '', key: '', url: '' });
-        setMessage(`Route ${newRoute.key} is successfully added!`);
+        const saved = { ...newRoute, key: window.location.host + newRoute.key };
+        setRoutes([saved, ...routes.filter(r => r.key !== saved.key)]);
+        setNewRoute(emptyRoute);
+        setMessage(`${saved.key} is ready to use`);
       })
       .catch(console.error);
-  }
+  };
 
-  const filteredRoutes = routes?.filter(route => route.key.includes(searchTerm));
+  const handleDelete = (key: string) => {
+    if (!window.confirm(`Delete ${key}?`)) {
+      return;
+    }
+    fetch('/api/routes', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    })
+      .then((response: Response) => {
+        if (!response.ok) {
+          setError(`Failed to delete ${key}: ${response.statusText}`);
+          return;
+        }
+        setRoutes(routes.filter(r => r.key !== key));
+      })
+      .catch(console.error);
+  };
+
+  const term = searchTerm.toLowerCase();
+  const filteredRoutes = routes
+    .filter(route => route.key.toLowerCase().includes(term) || route.url.toLowerCase().includes(term))
+    .sort((a, b) => a.key.localeCompare(b.key));
 
   return (
-    <>
-      <Link href="https://github.com/alileza/bridge" sx={{ display: 'inline-block', color: 'black', textDecoration: 'none' }} target="_blank">
-        <img src="/bridge.png" className="logo" width="80" style={{ marginRight: '10px', float: 'left' }} />
-        <Typography variant="h2" style={{ float: 'left'}} component="h2">
-          bridge
-        </Typography>
-        <GitHubIcon fontSize="large" style={{ marginTop: '20px', marginLeft: '20px' }} />
-        <StarIcon fontSize="large" style={{ animation: 'blink 2s infinite alternate, jitter 0.5s infinite alternate', marginTop: '20px', marginLeft: '20px' }} />
-      </Link>
-      
-      <div style={{float: 'right', width: '50%'}}>
+    <Box className="container">
+      <header className="header">
+        <Link href="https://github.com/alileza/bridge" target="_blank" rel="noreferrer" className="brand" underline="none">
+          <img src="/bridge.png" alt="" width="56" height="56" />
+          <Typography variant="h2" component="h1" className="brand-name" sx={{ fontFamily: "Baltore, sans-serif" }}>bridge</Typography>
+        </Link>
+        <Link href="https://github.com/alileza/bridge" target="_blank" rel="noreferrer" className="github" underline="none" aria-label="Star bridge on GitHub">
+          <GitHubIcon />
+          <StarIcon className="star" />
+        </Link>
+        <Box component="form" className="new-route" onSubmit={handleSave}>
+          <TextField
+            id="key"
+            label="Short path"
+            placeholder="/smthng-shrt"
+            variant="standard"
+            value={newRoute.key}
+            onChange={handleKeyChange}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">{window.location.host}</InputAdornment>,
+            }}
+            className="key-input"
+            required
+          />
+          <TextField
+            id="url"
+            label="Destination URL"
+            placeholder="https://..."
+            variant="standard"
+            type="url"
+            value={newRoute.url}
+            onChange={e => setNewRoute({ ...newRoute, url: e.target.value })}
+            className="url-input"
+            required
+          />
+          <Button type="submit" variant="contained" disableElevation className="save">
+            Save
+          </Button>
+        </Box>
+      </header>
 
-      <TextField
-          id="search-bar"
-          label="Search"
-          variant="filled"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{  marginTop: '20px', marginRight: '20px' }}
-          fullWidth
-        />
-        <br/>
 
-        <TextField
-          id="key"
-          label="/<smthng-shrt>"
-          variant="standard"
-          size="small"
-          value={newRoute.key}
-          onChange={handleKeyChange}
-          style={{ width: '43%', marginTop: '20px', marginRight: '10px'}}
-        />
-  
-        <TextField
-          id="url"
-          label="Destination URL (http://...)"
-          variant="standard"
-          size="small"
-          value={newRoute.url}
-          onChange={handleURLChange}
-          onKeyDown={handleKeyDownOnURLInput}
-          style={{ width: '43%',marginTop: '20px', marginRight: '10px' }} />
-
-        <Button
-          variant="contained"
-          onClick={handleSaveNewRoute}
-          style={{ marginTop: '20px' }}
-        >
-          Save
-        </Button>
-      </div>
-
-      <div style={{ clear: 'both' }}></div>
-      <br/>
       {error &&
-        <Alert onClick={() => setError(null)} icon={<ErrorOutlineIcon fontSize="inherit" />} severity="error">
+        <Alert onClose={() => setError(null)} icon={<ErrorOutlineIcon fontSize="inherit" />} severity="error" square>
           {error}
         </Alert>
       }
       {message &&
-        <Alert onClick={() => setMessage(null)} icon={<CheckIcon fontSize="inherit" />} severity="success">
+        <Alert onClose={() => setMessage(null)} icon={<CheckIcon fontSize="inherit" />} severity="success" square>
           {message}
         </Alert>
       }
 
-      <List sx={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        gap: '16px',
-      }}>
-        {filteredRoutes && filteredRoutes.map((route: Route) => {
-          const truncatedUrl = route.url.length > 23 ? route.url.substring(0, 23) + '...' : route.url;
-          const clipboardText = route.key;
-          return (
-            <ListItem key={route.key}>
-              <Tooltip
-                placement="top"
-                sx={{ cursor: 'pointer' }}
-                title={copied ? `${clipboardText} is copied` : "copy to clipboard"}
-                enterTouchDelay={0}
-              >
-                <ListItemText primary={route.key} secondary={truncatedUrl} onClick={() => handleCopy(clipboardText)} />
+      <Box className="list-header">
+        <Typography variant="overline" className="count">
+          {routes.length} {routes.length === 1 ? 'route' : 'routes'}
+        </Typography>
+        <TextField
+          id="search"
+          placeholder="Search routes"
+          variant="standard"
+          size="small"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+          }}
+        />
+      </Box>
+
+      {isLoading ? (
+        <Box className="empty"><CircularProgress color="inherit" size={28} /></Box>
+      ) : filteredRoutes.length === 0 ? (
+        <Box className="empty">
+          <Typography color="text.secondary">
+            {routes.length === 0 ? 'No routes yet. Create your first one above.' : 'No routes match your search.'}
+          </Typography>
+        </Box>
+      ) : (
+        <Box component="ul" className="routes">
+          {filteredRoutes.map((route: Route) => (
+            <Box component="li" key={route.key} className="route">
+              <Box className="route-text">
+                <Typography className="route-key" noWrap title={route.key}>{shortKey(route.key)}</Typography>
+                <Link href={route.url} target="_blank" rel="noreferrer" className="route-url" noWrap title={route.url} color="text.secondary">
+                  {route.url}
+                </Link>
+              </Box>
+              <Tooltip title={copiedKey === route.key ? 'Copied!' : 'Copy short link'} placement="top">
+                <IconButton size="small" onClick={() => handleCopy(route.key)} aria-label={`Copy ${route.key}`}>
+                  {copiedKey === route.key ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+                </IconButton>
               </Tooltip>
-            </ListItem>
-          );
-        }
-        )}
-      </List>
-    </>
-  )
+              <Tooltip title="Delete" placement="top">
+                <IconButton size="small" onClick={() => handleDelete(route.key)} aria-label={`Delete ${route.key}`}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
 }
 
 export default App;

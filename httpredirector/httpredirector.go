@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type HTTPRedirector struct {
@@ -37,9 +38,9 @@ func (rdr *HTTPRedirector) ListRoutes(host string) ([]Route, error) {
 }
 
 func filterRoutes(routes []Route, host string) []Route {
-	var filteredRoutes []Route
+	filteredRoutes := []Route{}
 	for _, route := range routes {
-		if route.Key == host {
+		if strings.HasPrefix(route.Key, host+"/") {
 			filteredRoutes = append(filteredRoutes, route)
 		}
 	}
