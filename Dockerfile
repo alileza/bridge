@@ -1,11 +1,13 @@
-FROM golang:1.22-alpine as gobuild
+FROM golang:1.27-alpine AS gobuild
 
-COPY . /app
 WORKDIR /app
-RUN go build -o /app/bridge
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /app/bridge
 
 # final image
-FROM alpine:3.17.3
+FROM alpine:3.24
 
 WORKDIR /app
 

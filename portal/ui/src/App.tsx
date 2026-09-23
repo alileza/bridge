@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Tooltip from '@mui/material/Tooltip';
 import Link from '@mui/material/Link';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
 import CheckIcon from '@mui/icons-material/Check';
 import Alert from '@mui/material/Alert';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -59,7 +58,8 @@ function App(): JSX.Element {
     }
   }
 
-  const handleCopy = () => {
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text).catch(console.error);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -175,16 +175,14 @@ function App(): JSX.Element {
           const clipboardText = route.key;
           return (
             <ListItem key={route.key}>
-              <CopyToClipboard text={clipboardText} onCopy={handleCopy}>
-                <Tooltip
-                  placement="top"
-                  sx={{ cursor: 'pointer' }}
-                  title={copied ? `${clipboardText} is copied` : "copy to clipboard"}
-                  enterTouchDelay={0}
-                >
-                  <ListItemText primary={route.key} secondary={truncatedUrl} />
-                </Tooltip>
-              </CopyToClipboard>
+              <Tooltip
+                placement="top"
+                sx={{ cursor: 'pointer' }}
+                title={copied ? `${clipboardText} is copied` : "copy to clipboard"}
+                enterTouchDelay={0}
+              >
+                <ListItemText primary={route.key} secondary={truncatedUrl} onClick={() => handleCopy(clipboardText)} />
+              </Tooltip>
             </ListItem>
           );
         }
