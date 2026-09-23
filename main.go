@@ -1,11 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
-
-	"github.com/urfave/cli/v2"
+	"strconv"
 
 	"github.com/alileza/bridge/httpredirector"
 	"github.com/alileza/bridge/portal"
@@ -13,69 +13,64 @@ import (
 )
 
 func main() {
-	var err error
-	app := &cli.App{
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "listen-address",
-				Aliases: []string{"l", "listen"},
-				Value:   "0.0.0.0:80",
-				Usage:   "HTTP listen address, e.g. 0.0.0.0:80",
-				EnvVars: []string{"LISTEN_ADDRESS"},
-			},
-			&cli.StringFlag{
-				Name:    "storage-dir",
-				Aliases: []string{"s", "storage"},
-				Value:   "./bridgedata",
-				Usage:   "storage dir (default: ./bridgedata)",
-			},
-			&cli.BoolFlag{
-				Name:    "proxy-enabled",
-				Aliases: []string{"p", "proxy"},
-				Value:   false,
-				Usage:   "enable proxy mode, it's useful for development UI",
-				EnvVars: []string{"PROXY_ENABLED"},
-				Hidden:  true,
-			},
-			&cli.StringFlag{
-				Name:    "proxy-url",
-				Aliases: []string{"u", "url"},
-				Value:   "http://localhost:5173",
-				Usage:   "proxy URL for UI, e.g. http://localhost:5173",
-				EnvVars: []string{"PROXY_URL"},
-				Hidden:  true,
-			},
-		},
-		Action: func(c *cli.Context) error {
-			listenAddress := c.String("listen-address")
-			proxyEnabled := c.Bool("proxy-enabled")
-			proxyURL := c.String("proxy-url")
-			storageDir := c.String("storage-dir")
+	var (
+		listenAddress string
+		storageDir    string
+		proxyEnabled  bool
+		proxyURL      string
+	)
 
-			os.MkdirAll(storageDir, 0755)
+	stringFlag(&listenAddress, []string{"listen-address", "l", "listen"}, "LISTEN_ADDRESS", "0.0.0.0:80", "HTTP listen address, e.g. 0.0.0.0:80")
+	stringFlag(&storageDir, []string{"storage-dir", "s", "storage"}, "", "./bridgedata", "storage dir")
+	boolFlag(&proxyEnabled, []string{"proxy-enabled", "p", "proxy"}, "PROXY_ENABLED", false, "enable proxy mode, it's useful for development UI")
+	stringFlag(&proxyURL, []string{"proxy-url", "u", "url"}, "PROXY_URL", "http://localhost:5173", "proxy URL for UI, e.g. http://localhost:5173")
+	flag.Parse()
 
-			store, err := storage.NewJSONFileStorage(storageDir)
-			if err != nil {
-				return fmt.Errorf("error initializing storage: %s", err)
-			}
+	if err := run(listenAddress, storageDir, proxyEnabled, proxyURL); err != nil {
+		log.Fatal(err)
+	}
+}
 
-			prtl := portal.NewServer(&portal.Options{
-				ListenAddress: listenAddress,
+func run(listenAddress, storageDir string, proxyEnabled bool, proxyURL string) error {
+	os.MkdirAll(storageDir, 0755)
 
-				UIProxyEnabled: proxyEnabled,
-				UIProxyURL:     proxyURL,
-
-				Redirector: &httpredirector.HTTPRedirector{
-					Storage: store,
-				},
-			})
-
-			return prtl.Start()
-		},
+	store, err := storage.NewJSONFileStorage(storageDir)
+	if err != nil {
+		return fmt.Errorf("error initializing storage: %s", err)
 	}
 
-	err = app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
+	prtl := portal.NewServer(&portal.Options{
+		ListenAddress: listenAddress,
+
+		UIProxyEnabled: proxyEnabled,
+		UIProxyURL:     proxyURL,
+
+		Redirector: &httpredirector.HTTPRedirector{
+			Storage: store,
+		},
+	})
+
+	return prtl.Start()
+}
+
+// stringFlag registers a string flag under all names, defaulting to the env var when set.
+func stringFlag(p *string, names []string, env, value, usage string) {
+	if v, ok := os.LookupEnv(env); ok && env != "" {
+		value = v
+	}
+	for _, name := range names {
+		flag.StringVar(p, name, value, usage)
+	}
+}
+
+// boolFlag registers a bool flag under all names, defaulting to the env var when set.
+func boolFlag(p *bool, names []string, env string, value bool, usage string) {
+	if v, ok := os.LookupEnv(env); ok && env != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			value = b
+		}
+	}
+	for _, name := range names {
+		flag.BoolVar(p, name, value, usage)
 	}
 }

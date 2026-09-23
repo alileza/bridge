@@ -13,32 +13,15 @@ import (
 
 	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/qr"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/alileza/bridge/httpredirector"
 )
 
-var (
-	forwardCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "bridge_routes_forwarded_total",
-			Help: "Total number of requests to the forward handler.",
-		},
-		[]string{"key"},
-	)
-	routesRegistered = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "bridge_routes_registered_count",
-			Help: "Total number of requests to the forward handler.",
-		},
-		[]string{"host"},
-	)
+var forwardCounter = newCounterVec(
+	"bridge_routes_forwarded_total",
+	"Total number of requests to the forward handler.",
+	"key",
 )
-
-func init() {
-	prometheus.MustRegister(forwardCounter)
-}
 
 type Server struct {
 	o   *Options
@@ -67,7 +50,7 @@ func NewServer(o *Options) *Server {
 		// lookup the key in the storage, if it exists, redirect
 		dest, err := o.Redirector.Storage.Get(keyWithHost)
 		if err == nil {
-			forwardCounter.With(prometheus.Labels{"key": keyWithHost}).Inc()
+			forwardCounter.Inc(keyWithHost)
 			http.Redirect(w, r, dest, http.StatusFound)
 			return
 		} else {
@@ -180,7 +163,7 @@ func NewServer(o *Options) *Server {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	apiMux.HandleFunc("GET /metrics", promhttp.Handler().ServeHTTP)
+	apiMux.Handle("GET /metrics", forwardCounter)
 
 	srv := &http.Server{
 		Addr:    o.ListenAddress,

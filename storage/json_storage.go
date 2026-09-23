@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -18,6 +19,10 @@ type JSONFileStorage struct {
 
 // NewJSONFileStorage creates a new instance of JSONFileStorage.
 func NewJSONFileStorage(filePath string) (*JSONFileStorage, error) {
+	if !strings.HasSuffix(filePath, ".json") {
+		filePath = filePath + ".json"
+	}
+
 	f, err := createOrLoad(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -160,15 +165,12 @@ func createOrLoad(filePath string) ([]byte, error) {
 		filePath = filePath + ".json"
 	}
 
-	ss := strings.Split(filePath, "/")
-	dir := strings.Join(ss[:len(ss)-1], "/")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create storage directory: %w", err)
+	}
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create storage directory: %w", err)
-		}
-
-		if err := os.WriteFile(filePath, []byte(defaultContent), 0755); err != nil {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		if err := os.WriteFile(filePath, []byte(defaultContent), 0644); err != nil {
 			return nil, fmt.Errorf("failed to create file: %w", err)
 		}
 	}
@@ -176,6 +178,10 @@ func createOrLoad(filePath string) ([]byte, error) {
 	f, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	if !json.Valid(f) {
+		return nil, fmt.Errorf("invalid JSON in %s", filePath)
 	}
 
 	return f, nil
