@@ -38,6 +38,14 @@ https://github.com/alileza/bridge/assets/1962129/e3da4868-2a72-40ae-876a-6956036
 
 
 
+## Releasing
+
+Every merge to `main` cuts a release automatically: a semver tag, a GitHub release with binaries, and a `ghcr.io/alileza/bridge` image.
+
+- Default bump is **patch**; add the `minor` or `major` label to the PR to bump further.
+- Put `[skip release]` in the merge commit message to skip a release.
+- To release manually, run the **Release** workflow from the Actions tab and pick the bump.
+
 ## Contributing 
 
 Contributions to Bridge are welcome! Whether it's bug fixes, feature enhancements, or documentation improvements, feel free to submit pull requests or open issues on the GitHub repository.
