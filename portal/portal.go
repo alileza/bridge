@@ -11,10 +11,14 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
+	"time"
 
 	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/qr"
 
+	"github.com/alileza/bridge/audit"
+	"github.com/alileza/bridge/auth"
 	"github.com/alileza/bridge/httpredirector"
 )
 
@@ -40,6 +44,20 @@ type Options struct {
 	// MetricsAddress, when set, serves /metrics on this separate address
 	// instead of the main listener (e.g. to keep it off the public port).
 	MetricsAddress string
+
+	// Auth, when set, requires GitHub login for the portal UI and API.
+	// Short-link redirects stay public.
+	Auth *auth.GitHub
+	// Audit, when set, records who created, updated or deleted routes.
+	Audit *audit.Log
+}
+
+// routeView is a route as returned by the API, with its last change when audited.
+type routeView struct {
+	Key       string     `json:"key"`
+	URL       string     `json:"url"`
+	UpdatedBy string     `json:"updated_by,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 func NewServer(o *Options) *Server {
@@ -50,6 +68,50 @@ func NewServer(o *Options) *Server {
 	}
 
 	metrics := NewMetrics(o.Version, o.Redirector.Storage)
+
+	// protect requires a logged-in user for API handlers when auth is enabled.
+	protect := func(h http.HandlerFunc) http.HandlerFunc {
+		if o.Auth == nil {
+			return h
+		}
+		return o.Auth.RequireAPI(h)
+	}
+	actor := func(r *http.Request) auth.Identity {
+		if o.Auth != nil {
+			if id, ok := o.Auth.User(r); ok {
+				return id
+			}
+		}
+		return auth.Identity{Login: "anonymous"}
+	}
+	record := func(e audit.Entry) {
+		if o.Audit == nil {
+			return
+		}
+		if err := o.Audit.Record(e); err != nil {
+			o.Logger.Println("audit:", err)
+			metrics.storageErrors.Inc("audit")
+		}
+	}
+
+	withActor := func(id auth.Identity, e audit.Entry) audit.Entry {
+		e.Actor, e.ActorEmails = id.Login, id.Emails
+		return e
+	}
+
+	if o.Auth != nil {
+		o.Auth.Register(apiMux)
+	}
+
+	apiMux.HandleFunc("GET /api/me", func(w http.ResponseWriter, r *http.Request) {
+		me := map[string]any{"auth_enabled": o.Auth != nil, "authenticated": false}
+		if o.Auth != nil {
+			if id, ok := o.Auth.User(r); ok {
+				me["authenticated"], me["login"], me["emails"] = true, id.Login, id.Emails
+			}
+		}
+		responseOk(w, me)
+	})
 
 	apiMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		keyWithHost := r.Host + r.URL.Path
@@ -62,6 +124,10 @@ func NewServer(o *Options) *Server {
 			return
 		} else {
 			o.Logger.Printf("404 - GET %s ", r.URL.Path)
+		}
+
+		if o.Auth != nil && !o.Auth.RequirePage(w, r) {
+			return
 		}
 
 		switch r.URL.Path {
@@ -85,7 +151,7 @@ func NewServer(o *Options) *Server {
 		w.Write(b)
 	})
 
-	apiMux.HandleFunc("GET /api/routes", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("GET /api/routes", protect(func(w http.ResponseWriter, r *http.Request) {
 		o.Logger.Printf("200 - GET /api/routes\n")
 		routes, err := o.Redirector.ListRoutes(r.Host)
 		if err != nil {
@@ -93,10 +159,32 @@ func NewServer(o *Options) *Server {
 			responseError(w, err, http.StatusInternalServerError)
 			return
 		}
-		responseOk(w, routes)
-	})
+		views := make([]routeView, 0, len(routes))
+		for _, route := range routes {
+			v := routeView{Key: route.Key, URL: route.URL}
+			if o.Audit != nil {
+				if e, ok := o.Audit.Last(route.Key); ok {
+					v.UpdatedBy, v.UpdatedAt = e.Actor, &e.Time
+				}
+			}
+			views = append(views, v)
+		}
+		responseOk(w, views)
+	}))
 
-	apiMux.HandleFunc("GET /api/routes/barcode", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("GET /api/audit", protect(func(w http.ResponseWriter, r *http.Request) {
+		if o.Audit == nil {
+			responseOk(w, []audit.Entry{})
+			return
+		}
+		limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil || limit <= 0 || limit > 1000 {
+			limit = 100
+		}
+		responseOk(w, o.Audit.Recent(limit, r.URL.Query().Get("key")))
+	}))
+
+	apiMux.HandleFunc("GET /api/routes/barcode", protect(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 
 		url := r.Form.Get("url")
@@ -126,9 +214,9 @@ func NewServer(o *Options) *Server {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", buffer.Len()))
 		w.WriteHeader(http.StatusOK)
 		w.Write(buffer.Bytes())
-	})
+	}))
 
-	apiMux.HandleFunc("PUT /api/routes", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("PUT /api/routes", protect(func(w http.ResponseWriter, r *http.Request) {
 		var request httpredirector.Route
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			o.Logger.Println("400 - PUT /api/routes: error decoding request:", err)
@@ -149,6 +237,8 @@ func NewServer(o *Options) *Server {
 		}
 
 		o.Logger.Printf("202 - PUT /api/routes: %s -> %s\n", request.Key, request.URL)
+		fullKey := httpredirector.RouteKey(r.Host, request.Key)
+		previous, getErr := o.Redirector.Storage.Get(fullKey)
 		if err := o.Redirector.SetRoute(r, request.Key, request.URL); err != nil {
 			o.Logger.Println("400 - PUT /api/routes: error setting route:", err)
 			metrics.storageErrors.Inc("set")
@@ -156,10 +246,16 @@ func NewServer(o *Options) *Server {
 			return
 		}
 		metrics.routeChanges.Inc("set")
+		switch {
+		case getErr != nil:
+			record(withActor(actor(r), audit.Entry{Action: audit.ActionCreate, Key: fullKey, URL: request.URL}))
+		case previous != request.URL:
+			record(withActor(actor(r), audit.Entry{Action: audit.ActionUpdate, Key: fullKey, URL: request.URL, PreviousURL: previous}))
+		}
 		w.WriteHeader(http.StatusAccepted)
-	})
+	}))
 
-	apiMux.HandleFunc("DELETE /api/routes", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("DELETE /api/routes", protect(func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
 			Key string `json:"key"`
 		}
@@ -169,11 +265,13 @@ func NewServer(o *Options) *Server {
 			return
 		}
 		o.Logger.Printf("200 - DELETE /api/routes: %s\n", request.Key)
+		previous, _ := o.Redirector.Storage.Get(request.Key)
 		if err := o.Redirector.RemoveRoute(request.Key); err == nil {
 			metrics.routeChanges.Inc("delete")
+			record(withActor(actor(r), audit.Entry{Action: audit.ActionDelete, Key: request.Key, PreviousURL: previous}))
 		}
 		w.WriteHeader(http.StatusOK)
-	})
+	}))
 
 	apiMux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := o.Redirector.Storage.List(); err != nil {
