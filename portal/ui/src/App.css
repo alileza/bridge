@@ -1,26 +1,155 @@
-/* src/styles/fonts.css */
-
-@font-face {
-    font-family: 'Baltore';
-    src: url('./fonts/baltore.ttf') format('truetype'),
-         url('./fonts/baltore.otf') format('opentype');
-    font-weight: normal;
-    font-style: normal;
+.container {
+  padding: 24px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-@font-face {
-    font-family: 'Baltore Slanted';
-    src: url('./fonts/baltore-slanted.ttf') format('truetype'),
-         url('./fonts/baltore-slanted.otf') format('opentype');
-    font-weight: normal;
-    font-style: italic;
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
 }
 
-input {
-    border: none !important;
-    outline: none !important;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
 }
 
-*:focus-visible {
-    outline: none !important;
+.brand-name {
+  font-family: 'Baltore', sans-serif;
+  font-size: 3rem;
+  line-height: 1;
+  color: #000;
+}
+
+.github {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #000;
+}
+
+.star {
+  animation: blink 2s infinite alternate, jitter 0.5s infinite alternate;
+}
+
+.new-route {
+  flex: 1 1 560px;
+  min-width: 0;
+  max-width: 900px;
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.key-input {
+  flex: 1 1 240px;
+}
+
+.url-input {
+  flex: 2 1 280px;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 16px 16px 32px;
+  }
+
+  .new-route,
+  .key-input,
+  .url-input {
+    flex-basis: 100%;
+  }
+
+  .save {
+    width: 100%;
+  }
+}
+
+.save {
+  flex: 0 0 auto;
+  min-width: 96px;
+}
+
+.list-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.count {
+  font-family: 'Baltore', sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.routes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 4px 16px;
+}
+
+.route {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 8px 12px;
+  transition: background-color 0.15s;
+}
+
+.route:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.route-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-key {
+  font-weight: 600;
+}
+
+.route-url {
+  display: block;
+  font-size: 0.8125rem;
+}
+
+.empty {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star {
+    animation: none;
+  }
+}
+
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes jitter {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, -1px); }
+  50% { transform: translate(1px, 1px); }
+  75% { transform: translate(-1px, 1px); }
+  100% { transform: translate(1px, -1px); }
 }

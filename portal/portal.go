@@ -7,9 +7,10 @@ import (
 	"image"
 	"image/png"
 	"log"
+	"mime"
 	"net/http"
 	"os"
-	"strings"
+	"path"
 
 	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/qr"
@@ -17,15 +18,10 @@ import (
 	"github.com/alileza/bridge/httpredirector"
 )
 
-var forwardCounter = newCounterVec(
-	"bridge_routes_forwarded_total",
-	"Total number of requests to the forward handler.",
-	"key",
-)
-
 type Server struct {
-	o   *Options
-	srv *http.Server
+	o          *Options
+	srv        *http.Server
+	metricsSrv *http.Server
 }
 
 type Options struct {
@@ -36,6 +32,14 @@ type Options struct {
 
 	UIProxyEnabled bool
 	UIProxyURL     string
+
+	// Version is reported in the bridge_build_info metric.
+	Version string
+	// MetricsEnabled exposes Prometheus metrics at /metrics.
+	MetricsEnabled bool
+	// MetricsAddress, when set, serves /metrics on this separate address
+	// instead of the main listener (e.g. to keep it off the public port).
+	MetricsAddress string
 }
 
 func NewServer(o *Options) *Server {
@@ -45,34 +49,38 @@ func NewServer(o *Options) *Server {
 		o.Logger = log.New(os.Stdout, "portal: ", log.LstdFlags)
 	}
 
+	metrics := NewMetrics(o.Version, o.Redirector.Storage)
+
 	apiMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		keyWithHost := r.Host + r.URL.Path
 		// lookup the key in the storage, if it exists, redirect
 		dest, err := o.Redirector.Storage.Get(keyWithHost)
 		if err == nil {
-			forwardCounter.Inc(keyWithHost)
+			metrics.redirects.Inc(r.Host)
+			metrics.forwarded.Inc(keyWithHost)
 			http.Redirect(w, r, dest, http.StatusFound)
 			return
 		} else {
 			o.Logger.Printf("404 - GET %s ", r.URL.Path)
 		}
 
-		if r.URL.Path == "/" {
+		switch r.URL.Path {
+		case "/":
 			r.URL.Path = "/index.html"
+		case "/favicon.ico":
+			r.URL.Path = "/favicon.png"
 		}
 
 		b, err := assets.ReadFile("ui/dist" + r.URL.Path)
 		if err != nil {
 			log.Println("Error reading file", err.Error())
+			metrics.misses.Inc(r.Host)
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 
-		if strings.HasSuffix(r.URL.Path, ".js") {
-			w.Header().Set("Content-Type", "application/javascript")
-		}
-		if strings.HasSuffix(r.URL.Path, ".css") {
-			w.Header().Set("Content-Type", "text/css")
+		if ct := mime.TypeByExtension(path.Ext(r.URL.Path)); ct != "" {
+			w.Header().Set("Content-Type", ct)
 		}
 		w.Write(b)
 	})
@@ -143,9 +151,11 @@ func NewServer(o *Options) *Server {
 		o.Logger.Printf("202 - PUT /api/routes: %s -> %s\n", request.Key, request.URL)
 		if err := o.Redirector.SetRoute(r, request.Key, request.URL); err != nil {
 			o.Logger.Println("400 - PUT /api/routes: error setting route:", err)
+			metrics.storageErrors.Inc("set")
 			responseError(w, err, http.StatusBadRequest)
 			return
 		}
+		metrics.routeChanges.Inc("set")
 		w.WriteHeader(http.StatusAccepted)
 	})
 
@@ -159,21 +169,39 @@ func NewServer(o *Options) *Server {
 			return
 		}
 		o.Logger.Printf("200 - DELETE /api/routes: %s\n", request.Key)
-		o.Redirector.RemoveRoute(request.Key)
+		if err := o.Redirector.RemoveRoute(request.Key); err == nil {
+			metrics.routeChanges.Inc("delete")
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 
-	apiMux.Handle("GET /metrics", forwardCounter)
+	apiMux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := o.Redirector.Storage.List(); err != nil {
+			metrics.storageErrors.Inc("list")
+			responseError(w, err, http.StatusServiceUnavailable)
+			return
+		}
+		responseOk(w, map[string]string{"status": "ok"})
+	})
 
-	srv := &http.Server{
-		Addr:    o.ListenAddress,
-		Handler: apiMux,
+	s := &Server{
+		o: o,
+		srv: &http.Server{
+			Addr:    o.ListenAddress,
+			Handler: metrics.Instrument(apiMux),
+		},
 	}
 
-	return &Server{
-		o:   o,
-		srv: srv,
+	switch {
+	case o.MetricsAddress != "":
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("GET /metrics", metrics)
+		s.metricsSrv = &http.Server{Addr: o.MetricsAddress, Handler: metricsMux}
+	case o.MetricsEnabled:
+		apiMux.Handle("GET /metrics", metrics)
 	}
+
+	return s
 }
 
 func responseOk(w http.ResponseWriter, data interface{}) {
@@ -192,8 +220,14 @@ func responseError(w http.ResponseWriter, err error, code int) {
 }
 
 func (s *Server) Start() error {
+	errc := make(chan error, 2)
+	if s.metricsSrv != nil {
+		s.o.Logger.Printf("Serving metrics on %s/metrics\n", s.o.MetricsAddress)
+		go func() { errc <- s.metricsSrv.ListenAndServe() }()
+	}
 	s.o.Logger.Printf("Listening on %s\n", s.o.ListenAddress)
-	return s.srv.ListenAndServe()
+	go func() { errc <- s.srv.ListenAndServe() }()
+	return <-errc
 }
 
 func generateBarcode(url string) (image.Image, error) {
