@@ -49,6 +49,34 @@ https://github.com/alileza/bridge/assets/1962129/e3da4868-2a72-40ae-876a-6956036
 
 `GET /healthz` returns `200` while the route storage is readable, `503` otherwise.
 
+## GitHub login & audit log
+
+Set `--github-client-id` and `--github-client-secret` to require GitHub login for the portal UI and API. Short-link redirects stay public.
+
+1. Create a [GitHub OAuth App](https://github.com/settings/applications/new) with the callback URL `https://<your-bridge-host>/auth/callback`.
+2. Run bridge with the app's credentials and decide who may log in:
+
+```sh
+bridge \
+  --github-client-id "$GITHUB_CLIENT_ID" \
+  --github-client-secret "$GITHUB_CLIENT_SECRET" \
+  --github-allowed-orgs my-org \
+  --session-secret "$(openssl rand -hex 32)"
+```
+
+| Flag | Env | Description |
+| --- | --- | --- |
+| `--github-client-id` | `GITHUB_CLIENT_ID` | OAuth App client ID; enables login |
+| `--github-client-secret` | `GITHUB_CLIENT_SECRET` | OAuth App client secret |
+| `--github-allowed-orgs` | `GITHUB_ALLOWED_ORGS` | Comma-separated orgs whose members may log in |
+| `--github-allowed-users` | `GITHUB_ALLOWED_USERS` | Comma-separated usernames who may log in |
+| `--session-secret` | `SESSION_SECRET` | Signs session cookies; set it so logins survive restarts |
+| `--github-url` | `GITHUB_URL` | GitHub Enterprise Server base URL (default `https://github.com`) |
+
+If neither allowlist is set, **any** GitHub user can log in (bridge logs a warning).
+
+Every create, update and delete is appended to `<storage-dir>.audit.jsonl` with who did it, when, and the old and new URL. It's shown in the portal's **Activity** tab and on each route, and available at `GET /api/audit?limit=100&key=<host/path>`. Without GitHub login, changes are recorded as `anonymous`.
+
 ## Monitoring
 
 With `--metrics` (or `--metrics-address`), bridge exposes Prometheus metrics with no extra dependencies:

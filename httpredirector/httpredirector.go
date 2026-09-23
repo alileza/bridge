@@ -54,13 +54,15 @@ func (rdr *HTTPRedirector) SetRoute(r *http.Request, key string, destURL string)
 		return fmt.Errorf("invalid destination URL: %w", err)
 	}
 
-	if key[0] != '/' {
+	return rdr.Storage.Set(RouteKey(r.Host, key), destURL)
+}
+
+// RouteKey returns the storage key for a short path on host, e.g. "go.example.com/gh".
+func RouteKey(host, key string) string {
+	if !strings.HasPrefix(key, "/") {
 		key = "/" + key
 	}
-
-	key = r.Host + key
-
-	return rdr.Storage.Set(key, destURL)
+	return host + key
 }
 
 // RemoveRoute removes a route from the redirector

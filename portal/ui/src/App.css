@@ -85,9 +85,64 @@
   margin-top: 8px;
 }
 
-.count {
+.tabs {
+  display: flex;
+  gap: 20px;
+}
+
+.tab {
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
   font-family: 'Baltore', sans-serif;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.tab.active {
+  color: #000;
+  border-bottom-color: #000;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-row {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+}
+
+.activity-row:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.activity-time {
+  flex: 0 0 72px;
+}
+
+.activity-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: rgba(0, 0, 0, 0.5);
+  text-decoration: line-through;
 }
 
 .routes {
