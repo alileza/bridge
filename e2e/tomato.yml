@@ -1,0 +1,40 @@
+# Black-box end-to-end tests for bridge, without GitHub login.
+# Run from the repo root: make e2e
+version: 2
+
+settings:
+  timeout: 2m
+  fail_fast: false
+  output: pretty
+  reset:
+    level: scenario
+
+app:
+  command: ./bin/bridge --listen-address 127.0.0.1:18080 --storage ./e2e/.data/core --metrics
+  port: 18080
+  ready:
+    type: http
+    path: /healthz
+    timeout: 20s
+
+resources:
+  # Inspects what bridge writes to disk (routes file, audit log).
+  shell:
+    type: shell
+    options:
+      timeout: 30s
+  # Two hosts pointing at the same bridge, to check routes are per host.
+  api:
+    type: http
+    base_url: http://localhost:18080
+    options:
+      no_redirect: true
+  other_host:
+    type: http
+    base_url: http://127.0.0.1:18080
+    options:
+      no_redirect: true
+
+features:
+  paths:
+    - ./e2e/features/core

@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -101,5 +103,53 @@ func TestCreateOrLoad(t *testing.T) {
 				tt.teardownFunc(cleanupDir)
 			}
 		})
+	}
+}
+
+func TestJSONFileStoragePersistsChanges(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "routes")
+
+	s, err := NewJSONFileStorage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Set("go/keep", "https://keep")
+	s.Set("go/update", "https://v1")
+	s.Set("go/update", "https://v2")
+	s.Set("go/delete", "https://gone")
+	s.Delete("go/delete")
+
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Set(fmt.Sprintf("go/concurrent-%d", i), "https://c")
+		}()
+	}
+	wg.Wait()
+
+	// A fresh instance only sees what reached the file.
+	reloaded, err := NewJSONFileStorage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := reloaded.Get("go/keep"); v != "https://keep" {
+		t.Errorf("go/keep = %q", v)
+	}
+	if v, _ := reloaded.Get("go/update"); v != "https://v2" {
+		t.Errorf("go/update = %q, want https://v2", v)
+	}
+	if _, err := reloaded.Get("go/delete"); err == nil {
+		t.Error("deleted route came back after reload")
+	}
+	routes, _ := reloaded.List()
+	if len(routes) != 22 {
+		t.Errorf("reloaded %d routes, want 22", len(routes))
+	}
+
+	matches, _ := filepath.Glob(path + ".json.tmp-*")
+	if len(matches) != 0 {
+		t.Errorf("temp files left behind: %v", matches)
 	}
 }

@@ -94,6 +94,15 @@ With `--metrics` (or `--metrics-address`), bridge exposes Prometheus metrics wit
 
 A ready-made Grafana dashboard lives in [`contrib/grafana/bridge-dashboard.json`](contrib/grafana/bridge-dashboard.json). Import it and pick your Prometheus data source.
 
+## Testing
+
+```sh
+make test   # unit tests
+make e2e    # black-box tests with tomato
+```
+
+The end-to-end suite in [`e2e/`](e2e) uses [tomato](https://github.com/tomatool/tomato). It starts the real bridge binary and drives it over HTTP. `e2e/tomato.yml` covers short links, per-host routing, the portal, the audit log and metrics. `e2e/tomato.auth.yml` runs bridge with GitHub login against a mocked GitHub (OAuth + API), covering org allowlists, sessions and attribution. CI runs both on every pull request.
+
 ## Releasing
 
 Every merge to `main` cuts a release automatically: a semver tag, a GitHub release with binaries, and a `ghcr.io/alileza/bridge` image.

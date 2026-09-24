@@ -1,0 +1,43 @@
+# Black-box end-to-end tests for bridge with GitHub login enabled.
+# A tomato http-server plays GitHub (OAuth + API) via --github-url.
+# Run from the repo root: make e2e
+version: 2
+
+settings:
+  timeout: 2m
+  fail_fast: false
+  output: pretty
+  reset:
+    level: scenario
+
+app:
+  command: >-
+    ./bin/bridge --listen-address 127.0.0.1:18081 --storage ./e2e/.data/auth
+    --github-client-id e2e-client --github-client-secret e2e-secret
+    --github-url http://127.0.0.1:19999 --github-allowed-orgs acme
+    --session-secret e2e-session-secret
+  port: 18081
+  ready:
+    type: http
+    path: /healthz
+    timeout: 20s
+
+resources:
+  # Inspects what bridge writes to disk (routes file, audit log).
+  shell:
+    type: shell
+    options:
+      timeout: 30s
+  api:
+    type: http
+    base_url: http://localhost:18081
+    options:
+      no_redirect: true
+  github:
+    type: http-server
+    options:
+      port: 19999
+
+features:
+  paths:
+    - ./e2e/features/auth
