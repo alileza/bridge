@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bridge — a self-hosted URL shortener in one Go binary</title>
+<meta name="description" content="bridge is a self-hosted URL shortener: per-host short links, GitHub login, an audit log of every change and Prometheus metrics, in one Go binary with one dependency.">
+<meta property="og:title" content="bridge — a self-hosted URL shortener in one Go binary">
+<meta property="og:description" content="Short links, GitHub login, audit log and Prometheus metrics. One binary, one dependency (it draws QR codes).">
+<meta property="og:type" content="website">
+<meta property="og:image" content="brag.jpg">
+<link rel="icon" type="image/png" href="favicon.png">
+
+<style>
+  /* ---- Tokens (shared with ben.apps.alileza.me) ---- */
+  :root {
+    --accent-blue:   #0057ff;
+    --accent-red:    #ff4034;
+    --accent-green:  #00db7f;
+    --accent-orange: #ff6f06;
+    --accent-purple: #622eff;
+
+    --content-primary:    #0a0d12;
+    --content-secondary:  #6b7280;
+    --content-tertiary:   #9ca4ad;
+
+    --surface-primary:  #ffffff;
+    --surface-secondary: rgba(0, 42, 97, 0.04);
+    --surface-inverted: #0e1116;
+
+    --border-primary:   rgba(0, 42, 97, 0.10);
+    --border-secondary: rgba(0, 42, 97, 0.18);
+
+    --radius-xs:   8px;
+    --radius-md:  16px;
+    --radius-lg:  24px;
+
+    --shadow-sm: 0 2px 12px 0 rgb(0 0 0 / 0.06);
+    --shadow-lg: 0 24px 60px -20px rgb(0 0 0 / 0.18);
+
+    --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: var(--font-sans);
+    font-weight: 450;
+    font-size: 16px;
+    color: var(--content-primary);
+    background: var(--surface-primary);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent-blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+  h1 { font-size: clamp(36px, 6vw, 64px); }
+  h2 { font-size: 28px; }
+  h3 { font-size: 18px; }
+  code, pre { font-family: var(--font-mono); }
+  code { font-size: 0.92em; background: var(--surface-secondary); padding: 1px 5px; border-radius: 4px; }
+
+  /* ---- Top nav ---- */
+  header.nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 14px 32px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--content-primary); }
+  .brand:hover { text-decoration: none; }
+  .brand img { width: 30px; height: 30px; display: block; }
+  .brand .name { font-weight: 720; font-size: 17px; letter-spacing: -0.01em; }
+  nav.links { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+  nav.links a {
+    color: var(--content-primary); padding: 6px 12px;
+    border-radius: var(--radius-xs); font-size: 14px; font-weight: 580;
+    transition: background 0.15s;
+  }
+  nav.links a:hover { background: var(--surface-secondary); text-decoration: none; }
+  nav.links a.primary { background: var(--content-primary); color: #fff; }
+  nav.links a.primary:hover { background: #1f2630; }
+  @media (max-width: 700px) { nav.links a:not(.primary) { display: none; } header.nav { padding: 12px 16px; } }
+
+  /* ---- Hero ---- */
+  main { max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+  @media (max-width: 700px) { main { padding: 0 16px; } }
+  section.hero { padding: 80px 0 60px; }
+  .hero .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 680;
+    color: var(--accent-blue);
+    background: rgba(0, 87, 255, 0.08);
+    padding: 5px 10px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 20px;
+  }
+  .hero .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-green); box-shadow: 0 0 0 3px rgba(0,219,127,0.2);
+  }
+  .hero h1 { max-width: 800px; }
+  .hero p.lede {
+    margin-top: 18px; max-width: 660px;
+    font-size: 20px; color: var(--content-secondary); line-height: 1.5;
+  }
+  .cta-row { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; border-radius: var(--radius-xs);
+    font-weight: 600; font-size: 14px;
+    transition: all 0.15s; border: 1px solid transparent;
+  }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); }
+  .btn.primary { background: var(--content-primary); color: #fff; }
+  .btn.primary:hover { background: #1f2630; }
+  .btn.secondary {
+    background: var(--surface-primary); color: var(--content-primary);
+    border-color: var(--border-secondary);
+  }
+  .btn.secondary:hover { background: var(--surface-secondary); }
+  .btn .meta { color: var(--content-tertiary); font-weight: 500; margin-left: 4px; }
+
+  /* ---- Preview (the video) ---- */
+  .preview {
+    margin-top: 56px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-inverted);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid #1f2630;
+  }
+  .preview .titlebar {
+    height: 32px; background: #161b22;
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 12px;
+    border-bottom: 1px solid #21262d;
+  }
+  .preview .titlebar .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .preview .titlebar .red    { background: #ff5f57; }
+  .preview .titlebar .yellow { background: #febc2e; }
+  .preview .titlebar .green  { background: #28c840; }
+  .preview .titlebar .url {
+    margin: 0 auto; font-family: var(--font-mono); font-size: 12px; color: #8b949e;
+    background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 2px 14px;
+  }
+  .preview video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #fafafa; }
+  .preview-note { margin-top: 12px; font-size: 13px; color: var(--content-tertiary); text-align: center; }
+
+  /* ---- Section heads ---- */
+  section { padding: 56px 0; }
+  .section-head { margin-bottom: 28px; }
+  .section-head .kicker {
+    font-size: 12px; font-weight: 680;
+    color: var(--accent-blue);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .section-head p {
+    margin-top: 8px; color: var(--content-secondary); font-size: 16px; max-width: 660px;
+  }
+
+  /* ---- Feature grid ---- */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .features { grid-template-columns: 1fr; } }
+  .feature {
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .feature:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+  .feature .icon {
+    width: 36px; height: 36px; border-radius: var(--radius-xs);
+    display: grid; place-items: center;
+    margin-bottom: 14px;
+    font-size: 18px;
+  }
+  .feature .icon.blue   { background: rgba(0, 87, 255, 0.1);  color: var(--accent-blue); }
+  .feature .icon.green  { background: rgba(0, 219, 127, 0.1); color: #00a35e; }
+  .feature .icon.orange { background: rgba(255, 111, 6, 0.1); color: var(--accent-orange); }
+  .feature .icon.red    { background: rgba(255, 64, 52, 0.1); color: var(--accent-red); }
+  .feature .icon.purple { background: rgba(98, 46, 255, 0.1); color: var(--accent-purple); }
+  .feature h3 { margin-bottom: 6px; }
+  .feature p { color: var(--content-secondary); font-size: 14px; }
+
+  /* ---- How it works ---- */
+  .pipeline {
+    display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 12px; align-items: center;
+  }
+  @media (max-width: 900px) {
+    .pipeline { grid-template-columns: 1fr; }
+    .pipeline .arrow { transform: rotate(90deg); }
+  }
+  .stage {
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    text-align: center;
+  }
+  .stage .stage-icon { font-size: 28px; margin-bottom: 8px; }
+  .stage .stage-name { font-weight: 680; font-size: 15px; }
+  .stage .stage-tech { font-family: var(--font-mono); font-size: 11.5px; color: var(--content-secondary); margin-top: 4px; }
+  .arrow { color: var(--content-tertiary); font-size: 24px; text-align: center; }
+
+  /* ---- Quick start ---- */
+  .quickstart {
+    background: var(--surface-inverted); color: #e6edf3;
+    border-radius: var(--radius-md);
+    padding: 24px 28px;
+    font-family: var(--font-mono);
+    font-size: 13.5px; line-height: 1.7;
+    overflow-x: auto; white-space: pre;
+  }
+  .quickstart .prompt { color: #8b949e; user-select: none; }
+  .quickstart .comment { color: #6e7681; }
+
+  /* ---- Config table ---- */
+  .table-wrap { overflow-x: auto; }
+  table.req { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.req th, table.req td {
+    text-align: left; padding: 12px 14px;
+    border-bottom: 1px solid var(--border-primary);
+    vertical-align: top;
+  }
+  table.req th {
+    font-weight: 580; color: var(--content-secondary);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  table.req tr:last-child td { border-bottom: none; }
+  table.req .req-name { font-weight: 580; white-space: nowrap; }
+  table.req .req-note { color: var(--content-secondary); font-size: 13px; }
+  table.req .env { font-family: var(--font-mono); font-size: 12.5px; color: var(--content-secondary); white-space: nowrap; }
+
+  /* ---- Footer ---- */
+  footer {
+    margin-top: 64px; padding: 32px;
+    border-top: 1px solid var(--border-primary);
+    background: var(--surface-secondary);
+  }
+  footer .inner {
+    max-width: 1100px; margin: 0 auto;
+    display: flex; gap: 24px; align-items: center; flex-wrap: wrap;
+    font-size: 13px; color: var(--content-secondary);
+  }
+  footer .inner .grow { flex: 1 1 0; }
+  footer .inner a { color: var(--content-secondary); }
+  footer .inner a:hover { color: var(--content-primary); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a class="brand" href="#">
+    <img src="bridge.png" alt="">
+    <span class="name">bridge</span>
+  </a>
+  <nav class="links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#quickstart">Quick start</a>
+    <a href="https://github.com/alileza/bridge" class="primary">GitHub →</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <span class="eyebrow"><span class="dot"></span>Self-hosted · one binary · one dependency</span>
+    <h1>Short links for your team, without the platform.</h1>
+    <p class="lede">
+      bridge turns <code>go.acme.com/standup</code> into that 190-character Meet link.
+      Log in with GitHub, see who changed what, scrape it with Prometheus.
+      It's one Go binary and a JSON file, and it depends on exactly one library.
+    </p>
+    <div class="cta-row">
+      <a href="#quickstart" class="btn primary">Run bridge <span>→</span></a>
+      <a href="https://github.com/alileza/bridge" class="btn secondary">
+        View source <span class="meta">on GitHub</span>
+      </a>
+    </div>
+
+    <div class="preview" aria-label="bridge in 23 seconds">
+      <div class="titlebar">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+        <span class="url">go.acme.com</span>
+      </div>
+      <video src="brag.mp4" poster="brag.jpg" controls playsinline preload="metadata"></video>
+    </div>
+    <p class="preview-note">bridge in 23 seconds · sound on 🔊</p>
+  </section>
+
+  <section id="features">
+    <div class="section-head">
+      <div class="kicker">What's in the box</div>
+      <h2>Everything a link shortener needs. Nothing it doesn't.</h2>
+      <p>No database, no queue, no sidecar. The Go standard library does the heavy lifting; the only third-party module draws QR codes.</p>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <div class="icon blue">↪</div>
+        <h3>Short links per host</h3>
+        <p>Point several hostnames at one bridge; each gets its own links. <code>/standup</code> can mean different things on <code>go.acme.com</code> and <code>go.beta.dev</code>.</p>
+      </div>
+      <div class="feature">
+        <div class="icon purple">◉</div>
+        <h3>GitHub login</h3>
+        <p>Optional OAuth with org or user allowlists and GitHub Enterprise support. Redirects stay public; the portal and API need a session.</p>
+      </div>
+      <div class="feature">
+        <div class="icon orange">≡</div>
+        <h3>Audit log</h3>
+        <p>Every create, update and delete lands in an append-only JSONL file: who did it, their verified emails, when, and the old and new URL.</p>
+      </div>
+      <div class="feature">
+        <div class="icon green">▮</div>
+        <h3>Prometheus metrics</h3>
+        <p><code>--metrics</code> exposes redirects, misses, route changes, latency and storage health. A Grafana dashboard ships in the repo.</p>
+      </div>
+      <div class="feature">
+        <div class="icon red">▦</div>
+        <h3>QR codes</h3>
+        <p>Every link has a QR code at <code>/api/routes/barcode</code>, for slides, posters and conference badges. This is the one dependency.</p>
+      </div>
+      <div class="feature">
+        <div class="icon blue">⛁</div>
+        <h3>Boring storage</h3>
+        <p>Routes live in a JSON file, written atomically, so a crash never leaves it half-written. Back it up with <code>cp</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how-it-works">
+    <div class="section-head">
+      <div class="kicker">How it works</div>
+      <h2>One lookup. One redirect.</h2>
+      <p>bridge keys every link by host and path, so the same binary can serve as many short domains as you point at it.</p>
+    </div>
+    <div class="pipeline">
+      <div class="stage">
+        <div class="stage-icon">🌐</div>
+        <div class="stage-name">Request</div>
+        <div class="stage-tech">GET go.acme.com/standup</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="stage">
+        <div class="stage-icon">🔎</div>
+        <div class="stage-name">Lookup</div>
+        <div class="stage-tech">"go.acme.com/standup" in routes.json</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="stage">
+        <div class="stage-icon">↪</div>
+        <div class="stage-name">Redirect</div>
+        <div class="stage-tech">302 Location: meet.google.com/…</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart">
+    <div class="section-head">
+      <div class="kicker">Quick start</div>
+      <h2>Run it in one line.</h2>
+      <p>Grab the container image or a release binary for Linux or macOS (amd64 and arm64). Point a hostname at it and open the portal.</p>
+    </div>
+    <div class="quickstart"><span class="comment"># docker</span>
+<span class="prompt">$</span> docker run -p 8080:80 -v bridge-data:/data ghcr.io/alileza/bridge:latest --storage /data/bridge --metrics
+
+<span class="comment"># or a release binary: bridge_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz from github.com/alileza/bridge/releases/latest</span>
+<span class="prompt">$</span> tar xzf bridge_*_linux_amd64.tar.gz
+<span class="prompt">$</span> ./bridge --listen-address 0.0.0.0:8080 --storage ./bridgedata
+
+<span class="comment"># with GitHub login</span>
+<span class="prompt">$</span> ./bridge --github-client-id "$GITHUB_CLIENT_ID" --github-client-secret "$GITHUB_CLIENT_SECRET" \
+    --github-allowed-orgs my-org --session-secret "$(openssl rand -hex 32)"</div>
+
+    <div class="table-wrap" style="margin-top: 28px;">
+      <table class="req">
+        <thead>
+          <tr><th>Flag</th><th>Env</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="req-name"><code>--listen-address</code></td><td class="env">LISTEN_ADDRESS</td><td class="req-note">HTTP listen address (default <code>0.0.0.0:80</code>).</td></tr>
+          <tr><td class="req-name"><code>--storage-dir</code></td><td class="env"></td><td class="req-note">Routes go in <code>&lt;storage-dir&gt;.json</code>, the audit log in <code>&lt;storage-dir&gt;.audit.jsonl</code>.</td></tr>
+          <tr><td class="req-name"><code>--metrics</code></td><td class="env">METRICS_ENABLED</td><td class="req-note">Expose Prometheus metrics at <code>/metrics</code>.</td></tr>
+          <tr><td class="req-name"><code>--metrics-address</code></td><td class="env">METRICS_ADDRESS</td><td class="req-note">Serve <code>/metrics</code> on a separate port instead, off the public listener.</td></tr>
+          <tr><td class="req-name"><code>--github-client-id</code> / <code>-secret</code></td><td class="env">GITHUB_CLIENT_ID / _SECRET</td><td class="req-note">Enable GitHub login for the portal and API.</td></tr>
+          <tr><td class="req-name"><code>--github-allowed-orgs</code> / <code>-users</code></td><td class="env">GITHUB_ALLOWED_ORGS / _USERS</td><td class="req-note">Who may log in. With neither set, any GitHub user can.</td></tr>
+          <tr><td class="req-name"><code>--session-secret</code></td><td class="env">SESSION_SECRET</td><td class="req-note">Signs session cookies, so logins survive restarts.</td></tr>
+          <tr><td class="req-name"><code>--github-url</code></td><td class="env">GITHUB_URL</td><td class="req-note">GitHub Enterprise Server base URL.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="inner">
+    <span>bridge — Apache-2.0 open source</span>
+    <span class="grow"></span>
+    <a href="https://github.com/alileza/bridge">GitHub</a>
+    <a href="https://github.com/alileza/bridge/releases">Releases</a>
+    <a href="https://github.com/alileza/bridge/blob/main/LICENSE">License</a>
+    <a href="https://github.com/alileza/bridge/issues">Issues</a>
+  </div>
+</footer>
+
+</body>
+</html>
