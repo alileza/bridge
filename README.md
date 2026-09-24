@@ -1,9 +1,7 @@
 # Bridge 
 <img width="193" alt="bridge (1)" src="https://github.com/alileza/bridge/assets/1962129/3469338d-c2c5-4446-9dc4-669ee1dd6b24">
 
-<a href="docs/brag.mp4"><img src="docs/brag.jpg" alt="bridge in 23 seconds: click to play" width="100%"></a>
-
-<sub>▶ Click to watch bridge in 23 seconds (sound on).</sub>
+<img src="docs/brag.gif" alt="bridge in 23 seconds: shorten a link, follow the redirect, see who changed it, metrics, and one dependency" width="100%">
 
 
 Bridge is a lightweight URL shortener server designed for simplicity, ease of operation, and minimal operational costs. With its minimalist design and efficient architecture, Bridge offers a straightforward solution for shortening URLs without the overhead of complex systems.
